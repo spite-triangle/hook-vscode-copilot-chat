@@ -47,10 +47,10 @@
 				"codesearch": true,
 				"copilotignore_enabled": false,
 				"endpoints": {
-					"api": "https://api.business.githubcopilot.com",
-					"origin-tracker": "https://origin-tracker.business.githubcopilot.com",
-					"proxy": "https://proxy.business.githubcopilot.com",
-					"telemetry": "https://telemetry.business.githubcopilot.com"
+					"api": "https://xxxx",
+					"origin-tracker": "https://xxxx",
+					"proxy": "https://xxxxx",
+					"telemetry": "https://xxxxx"
 				},
 				"expires_at": 2761321757,
 				"individual": false,
@@ -65,8 +65,8 @@
 				"sku": "copilot_for_business_seat_quota",
 				"snippy_load_test_enabled": false,
 				"telemetry": "disabled",
-				"token": "tid=25521c7a46180619297ead903f249eac;ol=084531bbdd2fc328eee45c6c7e42aeb6;exp=1761321757;sku=copilot_for_business_seat_quota;proxy-ep=proxy.business.githubcopilot.com;st=dotcom;ssc=1;chat=1;cit=1;malfil=1;editor_preview_features=1;agent_mode=1;mcp=1;ccr=1;8kp=1;ip=112.193.141.65;asn=AS4837:3ef201993d9faf6623bb22a45a66a74480b5f6bc7afcee57d1e40ad3109afcde",
-				"tracking_id": "25521c7a46180619297ead903f249eac",
+				"token": "tid=25521c7a46180619297ead903f249exx;ol=184531bbdd2fc3x8eee45c6c7e42aeb6;exp=2761321757;sku=copilot_for_business_seat_quota;proxy-ep=proxy.business.githubcopilot.com;st=dotcom;ssc=1;chat=1;cit=1;malfil=1;editor_preview_features=1;agent_mode=1;mcp=1;ccr=1;8kp=1;ip=127.0.0.1;asn=AS4837:3ef201993d9faf6623bb22a45a66a74480b5f6bc7afcee57d1e40ad3109afcdx",
+				"tracking_id": "25521c7a46180619297ead903f249exx",
 				"vsc_electron_fetcher_v2": false,
 				"xcode": true,
 				"xcode_chat": false
