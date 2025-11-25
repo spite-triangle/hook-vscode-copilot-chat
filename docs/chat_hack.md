@@ -1504,6 +1504,7 @@ export class ChunkingEndpointClientImpl extends Disposable implements IChunkingE
 	// src\extension\xtab\node\xtabProvider.ts
 	private async doGetNextEditWithSelection
 		// ...........
+				let userPrompt = getUserPrompt(promptPieces);
 		const prediction = this.getPredictedOutput(editWindowLines, promptOptions.promptingStrategy);
 
 		const messages = [
@@ -1512,7 +1513,6 @@ export class ChunkingEndpointClientImpl extends Disposable implements IChunkingE
 				content: toTextParts(this.pickSystemPrompt(promptOptions.promptingStrategy))
 			},
 			{ role: Raw.ChatRole.User, content: toTextParts(userPrompt) },
-			{ role: Raw.ChatRole.Assistant, content: toTextParts(typeof prediction?.content === 'string' ? prediction.content : "") }
 		] satisfies Raw.ChatMessage[];
 ```
 

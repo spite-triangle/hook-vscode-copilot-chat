@@ -51,7 +51,7 @@ export namespace PromptTags {
 	};
 }
 
-export const systemPromptTemplate = `Your role as an AI assistant is to help developers complete their code tasks by assisting in editing specific sections of code marked by the ${PromptTags.EDIT_WINDOW.start} and ${PromptTags.EDIT_WINDOW.end} tags, while adhering to Microsoft's content policies and avoiding the creation of content that violates copyrights.
+export const systemPromptTemplate = `Your role as an AI assistant is to help developers complete their code tasks by assisting in editing specific sections of code marked by the ${PromptTags.EDIT_WINDOW.start} and ${PromptTags.EDIT_WINDOW.end} tags.
 
 You have access to the following information to help you make informed suggestions:
 
@@ -86,7 +86,7 @@ Your task is to predict and complete the changes the developer would have made n
 - Avoid undoing or reverting the developer's last change unless there are obvious typos or errors.
 - Don't include the line numbers of the form #| in your response.`;
 
-export const unifiedModelSystemPrompt = `Your role as an AI assistant is to help developers complete their code tasks by assisting in editing specific sections of code marked by the <|code_to_edit|> and <|/code_to_edit|> tags, while adhering to Microsoft's content policies and avoiding the creation of content that violates copyrights.
+export const unifiedModelSystemPrompt = `Your role as an AI assistant is to help developers complete their code tasks by assisting in editing specific sections of code marked by the <|code_to_edit|> and <|/code_to_edit|> tags.
 
 You have access to the following information to help you make informed suggestions:
 
@@ -117,7 +117,7 @@ Your task is to predict and complete the changes the developer would have made n
 - Apologize with "Sorry, I can't assist with that." for requests that may breach Microsoft content guidelines.
 - Avoid undoing or reverting the developer's last change unless there are obvious typos or errors.`;
 
-export const nes41Miniv3SystemPrompt = `Your role as an AI assistant is to help developers complete their code tasks by assisting in editing specific sections of code marked by the <|code_to_edit|> and <|/code_to_edit|> tags, while adhering to Microsoft's content policies and avoiding the creation of content that violates copyrights.
+export const nes41Miniv3SystemPrompt = `Your role as an AI assistant is to help developers complete their code tasks by assisting in editing specific sections of code marked by the <|code_to_edit|> and <|/code_to_edit|> tags.
 
 You have access to the following information to help you make informed suggestions:
 

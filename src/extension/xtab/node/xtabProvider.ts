@@ -332,8 +332,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			promptOptions
 		);
 
-		const userPrompt = getUserPrompt(promptPieces);
-
+		let userPrompt = getUserPrompt(promptPieces);
 		const prediction = this.getPredictedOutput(editWindowLines, promptOptions.promptingStrategy);
 
 		const messages = [
@@ -342,7 +341,6 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				content: toTextParts(this.pickSystemPrompt(promptOptions.promptingStrategy))
 			},
 			{ role: Raw.ChatRole.User, content: toTextParts(userPrompt) },
-			{ role: Raw.ChatRole.Assistant, content: toTextParts(typeof prediction?.content === 'string' ? prediction.content : "") }
 		] satisfies Raw.ChatMessage[];
 
 		logContext.setPrompt(messages);
