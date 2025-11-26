@@ -89,22 +89,25 @@ export class ConversationFeature implements IExtensionContribution {
 
 		const activationBlockerDeferred = new DeferredPromise<void>();
 		this.activationBlocker = activationBlockerDeferred.p;
+
+		this.activated = true;
+		activationBlockerDeferred.complete();
+
 		if (authenticationService.copilotToken) {
 			this.logService.debug(`ConversationFeature: Copilot token already available`);
-			this.activated = true;
-			activationBlockerDeferred.complete();
+			// this.activated = true;
+			// activationBlockerDeferred.complete();
 		}
 
 		this._disposables.add(authenticationService.onDidAuthenticationChange(async () => {
 			const hasSession = !!authenticationService.copilotToken;
 			this.logService.debug(`ConversationFeature: onDidAuthenticationChange has token: ${hasSession}`);
-			if (hasSession) {
-				this.activated = true;
-			} else {
-				this.activated = false;
-			}
-
-			activationBlockerDeferred.complete();
+			// if (hasSession) {
+			// 	this.activated = true;
+			// } else {
+			// 	this.activated = false;
+			// }
+			// activationBlockerDeferred.complete();
 		}));
 	}
 

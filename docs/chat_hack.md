@@ -125,7 +125,57 @@
     }
 ```
 
+# 加快验证
 
+```ts
+// src\extension\conversation\vscode-node\conversationFeature.ts
+constructor(
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@ILogService private readonly logService: ILogService,
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IConversationOptions private conversationOptions: IConversationOptions,
+		@IChatAgentService private chatAgentService: IChatAgentService,
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
+		@ICombinedEmbeddingIndex private readonly embeddingIndex: ICombinedEmbeddingIndex,
+		@IDevContainerConfigurationService private readonly devContainerConfigurationService: IDevContainerConfigurationService,
+		@IGitCommitMessageService private readonly gitCommitMessageService: IGitCommitMessageService,
+		@IMergeConflictService private readonly mergeConflictService: IMergeConflictService,
+		@ILinkifyService private readonly linkifyService: ILinkifyService,
+		@IVSCodeExtensionContext private readonly extensionContext: IVSCodeExtensionContext,
+		@INewWorkspacePreviewContentManager private readonly newWorkspacePreviewContentManager: INewWorkspacePreviewContentManager,
+		@ISettingsEditorSearchService private readonly settingsEditorSearchService: ISettingsEditorSearchService,
+	) {
+		this._enabled = false;
+		this._activated = false;
+
+		// Register Copilot token listener
+		this.registerCopilotTokenListener();
+
+		const activationBlockerDeferred = new DeferredPromise<void>();
+		this.activationBlocker = activationBlockerDeferred.p;
+
+		this.activated = true;
+		activationBlockerDeferred.complete();
+
+		if (authenticationService.copilotToken) {
+			this.logService.debug(`ConversationFeature: Copilot token already available`);
+			// this.activated = true;
+			// activationBlockerDeferred.complete();
+		}
+
+		this._disposables.add(authenticationService.onDidAuthenticationChange(async () => {
+			const hasSession = !!authenticationService.copilotToken;
+			this.logService.debug(`ConversationFeature: onDidAuthenticationChange has token: ${hasSession}`);
+			// if (hasSession) {
+			// 	this.activated = true;
+			// } else {
+			// 	this.activated = false;
+			// }
+			// activationBlockerDeferred.complete();
+		}));
+	}
+```
 
 
 # 模型配置
