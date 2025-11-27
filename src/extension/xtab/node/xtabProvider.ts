@@ -338,7 +338,14 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		const messages = [
 			{
 				role: Raw.ChatRole.System,
-				content: toTextParts(this.pickSystemPrompt(promptOptions.promptingStrategy))
+				content: toTextParts(this.pickSystemPrompt(promptOptions.promptingStrategy) + `
+# 输出规范
+
+- 输出为 ${activeDocument.languageId} 语言片段
+- 确保输出内容插入原文后, 语法语法正确
+- 输出内容避免与原文重复
+- 输出格式参考: ${typeof prediction?.content === "string" ? this.escapeWhitespace(prediction.content) : ""}
+`)
 			},
 			{ role: Raw.ChatRole.User, content: toTextParts(userPrompt) },
 		] satisfies Raw.ChatMessage[];
@@ -383,6 +390,16 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			cancellationToken
 		);
 		return Result.ok<void>(undefined);
+	}
+
+	private escapeWhitespace(str: string): string {
+		return str
+			.replace(/\\/g, '\\\\')   // 先转义反斜杠
+			.replace(/\r/g, '\\r')
+			.replace(/\n/g, '\\n')
+			.replace(/\t/g, '\\t')
+			.replace(/\f/g, '\\f')
+			.replace(/\v/g, '\\v');
 	}
 
 	private async getLanguageContext(

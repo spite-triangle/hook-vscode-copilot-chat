@@ -343,3 +343,19 @@ async function lnt(t, e, n, a, r, o, c, l, A, u, p) {
       ]
     }
 ```
+
+# 代码块符号修正
+
+```js
+function tY(t, e, n) {
+  // NOTE - 修正输出
+  const removeMarkdownCodeBlock = str => {
+        str = str.replace(/```[a-zA-Z0-9_\-]*(\s*[\s\S]*)$/g, (_, code) => code);
+        str = str.replace(/^([\s\S]*?)```/g, (_, code) => code);
+        return str;
+  };
+
+  let a = removeMarkdownCodeBlock(e.solution.text.join("")),
+    r = !1;
+
+```
