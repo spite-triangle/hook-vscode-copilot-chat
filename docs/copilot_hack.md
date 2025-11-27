@@ -192,48 +192,35 @@ async function lnt(t, e, n, a, r, o, c, l, A, u, p) {
       throw new Error(`Failed to get github.copilot.codeModel configuration.${e}\n${e.stack}`);
   }
 
-  o.messages =  [
-                  {
-                      role: "system",
-                      content: `
-你是一名经验丰富的代码补全助手。
-
-# 字段格式定义
-- 开始标签: |@field_name#|
-- 结束标签: |/@field_name#|
-- 值: 在开始标签与biazh之间
+    o.messages = [
+    {
+      role: "system",
+      content: `
+你是一名代码补全助手, 分析开发者正在编写的 ${o.extra.language} 语言代码上下文, 在 |<#insert_here#>| 处插入补全内容
 
 # 补全规则
-- speculation 是补全代码的建议
-- 要根据 context 规则在 prompt 与 suffix 之间插入代码
-  - prompt 是要插入位置的前文
-  - suffix 是要插入位置的后文
-- extra 中读取额外关于代码补全的配置
 
-# 代码要求
-- 仔细分析 prompt 与 suffix 上下文, 保证插入prompt 与 suffix之间代码的语法正确性
-- 无较好的补全建议，可以不生成补全内容，返回空字符串即可
-- 最小化修改，且补全的代码尽量保持最少化
-- 不要生成重复代码
-- 变量命名与编码风格尽量原代码保持一致
+- 若需要在 |<#insert_here#>| 处换行，输出应当以 \n 字符串为开头
+- 补全内容最小化修改
+- 确保补全内容插入上下文间, 文档整体语法正确
+- 无插入内容，则输出空字符串
+- 避免插入内容与上下文内容重复
+- 变量命名与编码风格尽量与上下文保持一致
+- 补全内容需要输出的后续缩进空格数: ${o.extra.next_indent}
+- 根据缩进智能修剪输出: ${o.extra.trim_by_indentation == false ? "false" : "true"}
 
-# 返回内容
-- 纯代码文本, 不需要 markdown 的代码块格式
-- 不要返回无关内容
-                      `
-                  },
-                {
-                      role: "user",
-                      content: `
-|@speculation#| ${ o.speculation? JSON.stringify(o.speculation): "" } |/@speculation#|
-|@context#| ${o.extra?.context} |/@context#|
-|@suffix#|  ${o.suffix}  |/@suffix#|
-|@prompt#| ${o.prompt}  |/@prompt#|
-|@extra#| ${ o.extra ? JSON.stringify(o.extra): ""} |@/extra#|
-                      `
-                  }
-              ];
+# 输出规范
 
+- 只输出纯 ${o.extra.language} 语言片段
+- 不要输出无关内容
+- 不要输出 markdown 代码块标识符号
+`
+    },
+    {
+      role: "user",
+      content: `${o.prompt}|<#insert_here#>|${o.suffix}`
+    }
+  ];
     // ..............
 }
 ```
