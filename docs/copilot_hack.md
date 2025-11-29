@@ -169,6 +169,8 @@
 # fetch
 
 ```js
+
+let lastRequestTime = 0;
 async function lnt(t, e, n, a, r, o, c, l, A, u, p) {
   let m = t.get(Dr),
     g = Xun(t, c, n, a),
@@ -178,35 +180,47 @@ async function lnt(t, e, n, a, r, o, c, l, A, u, p) {
     et(t, "request.sent", f));
   let h = go(),
     b = unt(l);
+
   // NOTE - 请求模型
   var vs = require("vscode");
   let config;
   let apikey;
-  try{
+  let interval;
+  try {
     config = vs.workspace.getConfiguration("github.copilot.codeModel");
     o.model = config.get("model");
+    o.n = config.has("n_max") ? Math.min(config.get("n_max"), o.n) : o.n;
     apikey = config.get("apikey");
+    interval = Math.max(config.get("interval",200), 100);
     g = config.get("url") + "/chat/completions";
-  }catch(e){
-      vs.window.showErrorMessage('请配置 github.copilot.codeModel 模型');
-      throw new Error(`Failed to get github.copilot.codeModel configuration.${e}\n${e.stack}`);
+  } catch (e) {
+    vs.window.showErrorMessage('请配置 github.copilot.codeModel 模型');
+    throw new Error(`Failed to get github.copilot.codeModel configuration.${e}\n${e.stack}`);
   }
 
-    o.messages = [
+  const now = Date.now();
+  if (now - lastRequestTime <= interval){
+    throw new Error('too many request.')
+  }else{
+    lastRequestTime = now;
+  }
+
+   o.messages = [
     {
       role: "system",
       content: `
-你是一名代码补全助手, 分析开发者正在编写的 ${o.extra.language} 语言代码上下文, 在 |<#insert_here#>| 处插入补全内容
+/no_think
+
+你是一名代码补全助手, 分析开发者正在编写的 ${o.extra.language} 语言代码上下文, 在 |<cursor>| 处插入补全内容
 
 # 补全规则
 
-- 若需要在 |<#insert_here#>| 处换行，输出应当以 \n 字符串为开头
 - 补全内容最小化修改
 - 确保补全内容插入上下文间, 文档整体语法正确
 - 无插入内容，则输出空字符串
 - 避免插入内容与上下文内容重复
 - 变量命名与编码风格尽量与上下文保持一致
-- 补全内容需要输出的后续缩进空格数: ${o.extra.next_indent}
+- |<cursor>| 的后续缩进空格数: ${o.extra.next_indent}
 - 根据缩进智能修剪输出: ${o.extra.trim_by_indentation == false ? "false" : "true"}
 
 # 输出规范
@@ -218,7 +232,7 @@ async function lnt(t, e, n, a, r, o, c, l, A, u, p) {
     },
     {
       role: "user",
-      content: `${o.prompt}|<#insert_here#>|${o.suffix}`
+      content: `${o.prompt}|<cursor>|${o.suffix}`
     }
   ];
     // ..............
@@ -274,6 +288,10 @@ async function lnt(t, e, n, a, r, o, c, l, A, u, p) {
                 description: "the max of n."
               }
             },
+                interval: {
+                type: "integer",
+                description: "the interval between tow requists, ms"
+              }
         },
         required: [
             "model",
@@ -321,7 +339,11 @@ async function lnt(t, e, n, a, r, o, c, l, A, u, p) {
         "max_n": {
           "type": "integer",
           "description": "the max of n."
-        }
+        },
+        "interval": {
+            "type": "integer",
+            "description": "the interval between tow requists, ms"
+          }
       },
       "required": [
         "model",
@@ -336,13 +358,13 @@ async function lnt(t, e, n, a, r, o, c, l, A, u, p) {
 ```js
 function tY(t, e, n) {
   // NOTE - 修正输出
-  const removeMarkdownCodeBlock = str => {
-        str = str.replace(/```[a-zA-Z0-9_\-]*(\s*[\s\S]*)$/g, (_, code) => code);
-        str = str.replace(/^([\s\S]*?)```/g, (_, code) => code);
+    const formatString = (str) => {
+        str = str.replace(/\s*<think\>[\s\S]*?<\/think>\s*?\n*/g, "")
+        str = str.replace(/\s*```[a-zA-Z0-9_\-]*\n?/, "")
+        str = str.replace(/```\s*$/, "")
         return str;
-  };
+    };
 
-  let a = removeMarkdownCodeBlock(e.solution.text.join("")),
-    r = !1;
+  let a = formatString(e.solution.text.join("")),
 
 ```
