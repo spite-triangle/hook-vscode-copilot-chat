@@ -205,13 +205,13 @@ async function lnt(t, e, n, a, r, o, c, l, A, u, p) {
     lastRequestTime = now;
   }
 
-   o.messages = [
+  o.messages = [
     {
       role: "system",
       content: `
 /no_think
 
-你是一名代码补全助手, 分析开发者正在编写的 ${o.extra.language} 语言代码上下文, 在 |<cursor>| 处插入补全内容
+你是一名代码补全助手, 分析开发者正在编写的 ${o.extra.language} 语言代码上下文, 在 |<cursor>| 处插入建议补全内容
 
 # 补全规则
 
@@ -220,7 +220,7 @@ async function lnt(t, e, n, a, r, o, c, l, A, u, p) {
 - 无插入内容，则输出空字符串
 - 避免插入内容与上下文内容重复
 - 变量命名与编码风格尽量与上下文保持一致
-- |<cursor>| 的后续缩进空格数: ${o.extra.next_indent}
+- |<cursor>| 处后续行缩进空格数: ${o.extra.next_indent}
 - 根据缩进智能修剪输出: ${o.extra.trim_by_indentation == false ? "false" : "true"}
 
 # 输出规范
@@ -232,10 +232,87 @@ async function lnt(t, e, n, a, r, o, c, l, A, u, p) {
     },
     {
       role: "user",
-      content: `${o.prompt}|<cursor>|${o.suffix}`
+      content: `${o.prompt}|<cursor>|\n${o.suffix}`
     }
   ];
-    // ..............
+
+  delete o.prompt;
+  delete o.suffix;
+  delete o.extra;
+
+  o.stop = ["\n```"];
+
+  const now = Date.now();
+  const timeSinceLastRequest = now - lastRequestTime;
+  const waitTime = Math.max(0, interval - timeSinceLastRequest);
+
+  ta.info(t, `${waitTime} : ${JSON.stringify(o)}`);
+
+  return new Promise((resolve, reject) => {
+    const executeRequest = async () => {
+      return iS(t, g, apikey, b, r, o, u, p)
+        .then((y) => {
+          let w = jv(y);
+          f.extendWithRequestId(w);
+          let _ = go() - h;
+          return (
+            (f.measurements.totalTimeMs = _),
+            Ro.info(
+              t,
+              `Request ${r} at <${g}> finished with ${y.status} status after ${_}ms`,
+            ),
+            (f.properties.status = String(y.status)),
+            Ro.debug(t, "request.response properties", f.properties),
+            Ro.debug(t, "request.response measurements", f.measurements),
+            Ro.debug(t, "prompt:", e),
+            et(t, "request.response", f),
+            y
+          );
+        })
+        .catch((y) => {
+          if (Iu(y)) throw (et(t, "request.cancel", f), y);
+          m.setWarning(WA(y, "message") ?? "");
+          let w = f.extendedBy({ error: "Network exception" });
+          (et(t, "request.shownWarning", w),
+            (f.properties.message = String(WA(y, "name") ?? "")),
+            (f.properties.code = String(WA(y, "code") ?? "")),
+            (f.properties.errno = String(WA(y, "errno") ?? "")),
+            (f.properties.type = String(WA(y, "type") ?? "")));
+          let _ = go() - h;
+          throw (
+            (f.measurements.totalTimeMs = _),
+            Ro.info(
+              t,
+              `1 Request ${r} at <${g}> rejected with ${String(y)} after ${_}ms`,
+            ),
+            Ro.debug(t, "request.error properties", f.properties),
+            Ro.debug(t, "request.error measurements", f.measurements),
+            et(t, "request.error", f),
+            y
+          );
+        })
+        .finally(() => {
+          m7e(t, e, f);
+        });
+
+    };
+
+    if (lastTimeoutId) {
+      clearTimeout(lastTimeoutId);
+      lastTimeoutId = null;
+    }
+
+    lastTimeoutId = setTimeout(async () => {
+      try {
+        resolve(await executeRequest());
+      } catch (error) {
+        ta.info(t, `${error}`);
+        reject(error);
+      }
+      lastRequestTime = Date.now();
+      lastTimeoutId = null;
+    }, waitTime);
+  });
 }
 ```
 
@@ -356,15 +433,18 @@ async function lnt(t, e, n, a, r, o, c, l, A, u, p) {
 # 代码块符号修正
 
 ```js
-function tY(t, e, n) {
   // NOTE - 修正输出
-    const formatString = (str) => {
-        str = str.replace(/\s*<think\>[\s\S]*?<\/think>\s*?\n*/g, "")
-        str = str.replace(/\s*```[a-zA-Z0-9_\-]*\n?/, "")
-        str = str.replace(/```\s*$/, "")
-        return str;
-    };
+  const formatString = (str) => {
+    str = str.replace(/\s*<think>[\s\S]*?<\/think>\s*?\n*/g, "")
+    str = str.replace(/\s*<think>[\s\S]*?<\/thi[\s\S]*?\n*/g, "");
+    str = str.replace(/\s*```[a-zA-Z0-9_\-]*\n?/, "")
+    str = str.replace(/```\s*$/, "")
+    return str;
+  };
 
   let a = formatString(e.solution.text.join("")),
+    r = !1;
+  ta.info(t, a);
+
 
 ```

@@ -339,11 +339,11 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			{
 				role: Raw.ChatRole.System,
 				content: toTextParts(this.pickSystemPrompt(promptOptions.promptingStrategy) + `
-# 输出规范
+# 输出要求
 
 - 输出为 ${activeDocument.languageId} 语言片段
-- 确保输出内容插入原文后, 语法语法正确
-- 输出内容避免与原文重复
+- 确保输出内容语法正确
+- 避免输出内容与原文重复
 - 输出格式参考: ${typeof prediction?.content === "string" ? this.escapeWhitespace(prediction.content) : ""}
 `)
 			},

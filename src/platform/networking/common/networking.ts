@@ -290,10 +290,6 @@ function networkRequest(
 		let type = endpoint.urlOrRequestMetadata.type;
 		if (type == RequestType.CAPIEmbeddings) {
 			config = vscode.workspace.getConfiguration('github.copilot.embeddingModel');
-		} else if (type == RequestType.ProxyCompletions) {
-			config = vscode.workspace.getConfiguration('github.copilot.codeModel');
-		} else if (type == RequestType.ProxyChatCompletions) {
-			config = vscode.workspace.getConfiguration('github.copilot.codeModel');
 		}
 	}
 
