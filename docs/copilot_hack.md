@@ -186,24 +186,30 @@ async function lnt(t, e, n, a, r, o, c, l, A, u, p) {
   let config;
   let apikey;
   let interval;
+ let mode;
   try {
     config = vs.workspace.getConfiguration("github.copilot.codeModel");
     o.model = config.get("model");
     o.n = config.has("n_max") ? Math.min(config.get("n_max"), o.n) : o.n;
     apikey = config.get("apikey");
-    interval = Math.max(config.get("interval",200), 100);
-    g = config.get("url") + "/chat/completions";
+    interval = Math.max(config.get("interval", 200), 100);
+    mode = config.get("mode","chat");
+    if(mode === "code"){
+        g = config.get("url") + "/completions"
+    }else{
+        g = config.get("url") + "/chat/completions";
+    }
+
   } catch (e) {
     vs.window.showErrorMessage('请配置 github.copilot.codeModel 模型');
     throw new Error(`Failed to get github.copilot.codeModel configuration.${e}\n${e.stack}`);
   }
-
-  const now = Date.now();
-  if (now - lastRequestTime <= interval){
-    throw new Error('too many request.')
+  if (mode === "code"){
+      delete o.messages;
+      delete o.code_annotations;
+      delete o.suffix;
+      delete o.extra;
   }else{
-    lastRequestTime = now;
-  }
 
   o.messages = [
     {
@@ -236,12 +242,12 @@ async function lnt(t, e, n, a, r, o, c, l, A, u, p) {
     }
   ];
 
-  delete o.prompt;
-  delete o.suffix;
-  delete o.extra;
+    delete o.prompt;
+    delete o.suffix;
+    delete o.extra;
 
-  o.stop = ["\n```"];
-
+    o.stop = ["\n```"];
+  }
   const now = Date.now();
   const timeSinceLastRequest = now - lastRequestTime;
   const waitTime = Math.max(0, interval - timeSinceLastRequest);
@@ -368,6 +374,11 @@ async function lnt(t, e, n, a, r, o, c, l, A, u, p) {
                 interval: {
                 type: "integer",
                 description: "the interval between tow requists, ms"
+              },
+              mode: {
+                type: "string",
+                enum: ["code", "chat"],
+                description: "the request type."
               }
         },
         required: [
@@ -420,6 +431,14 @@ async function lnt(t, e, n, a, r, o, c, l, A, u, p) {
         "interval": {
             "type": "integer",
             "description": "the interval between tow requists, ms"
+          },
+        "mode": {
+            "type": "string",
+            "enum": [
+              "code",
+              "chat"
+            ],
+            "description": "the request type."
           }
       },
       "required": [
@@ -446,5 +465,20 @@ async function lnt(t, e, n, a, r, o, c, l, A, u, p) {
     r = !1;
   ta.info(t, a);
 
+```
 
+# 截断
+
+```js
+function dnt(t, e) {
+ // NOTE - 降低截断换行
+  return (
+    adn[e ?? ""] ?? [
+      `
+
+`,
+      "\n```",
+    ]
+  );
+}
 ```
