@@ -1553,32 +1553,38 @@ export class ChunkingEndpointClientImpl extends Disposable implements IChunkingE
 		let userPrompt = getUserPrompt(promptPieces);
 		const prediction = this.getPredictedOutput(editWindowLines, promptOptions.promptingStrategy);
 
-		const messages = [
+		let messages: Raw.ChatMessage[] = [
 			{
 				role: Raw.ChatRole.System,
 				content: toTextParts(this.pickSystemPrompt(promptOptions.promptingStrategy) + `
-# 输出要求
 
-- 输出为 ${activeDocument.languageId} 语言片段
-- 确保输出内容语法正确
-- 避免输出内容与原文重复
-- 输出格式参考: ${typeof prediction?.content === "string" ? this.escapeWhitespace(prediction.content) : ""}
+# Output Requirements
+
+- output language mode is ${activeDocument.languageId}
+- output is minimum modification of current file content
+- ensure grammatical correctness in modify content
+- avoid repetition of content from the original text
 `)
 			},
-			{ role: Raw.ChatRole.User, content: toTextParts(userPrompt) },
-		] satisfies Raw.ChatMessage[];
+			{ role: Raw.ChatRole.User, content: toTextParts(userPrompt) }
+		]
 
-	// ----
+		if (typeof prediction?.content === "string") {
+			messages.push(
+				{
+					role: Raw.ChatRole.Assistant,
+					content: toTextParts(prediction.content)
+				}
+			)
 
-	private escapeWhitespace(str: string): string {
-		return str
-			.replace(/\\/g, '\\\\')   // 先转义反斜杠
-			.replace(/\r/g, '\\r')
-			.replace(/\n/g, '\\n')
-			.replace(/\t/g, '\\t')
-			.replace(/\f/g, '\\f')
-			.replace(/\v/g, '\\v');
-	}
+			messages.push(
+				{
+					role: Raw.ChatRole.User,
+					content: toTextParts('Re-evaluate and improve the answer. Do not output any additional content. Return in the following format \n```\n// Your revised code goes here\n```')
+				}
+			)
+
+		}
 ```
 
 # package.json

@@ -335,7 +335,9 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		let userPrompt = getUserPrompt(promptPieces);
 		const prediction = this.getPredictedOutput(editWindowLines, promptOptions.promptingStrategy);
 
-		const messages = [
+
+
+		let messages: Raw.ChatMessage[] = [
 			{
 				role: Raw.ChatRole.System,
 				content: toTextParts(this.pickSystemPrompt(promptOptions.promptingStrategy) + `
@@ -346,11 +348,27 @@ export class XtabProvider implements IStatelessNextEditProvider {
 - output is minimum modification of current file content
 - ensure grammatical correctness in modify content
 - avoid repetition of content from the original text
-- refer to the following format for output : ${typeof prediction?.content === "string" ? this.escapeWhitespace(prediction.content) : ""}
 `)
 			},
-			{ role: Raw.ChatRole.User, content: toTextParts(userPrompt) },
-		] satisfies Raw.ChatMessage[];
+			{ role: Raw.ChatRole.User, content: toTextParts(userPrompt) }
+		]
+
+		if (typeof prediction?.content === "string") {
+			messages.push(
+				{
+					role: Raw.ChatRole.Assistant,
+					content: toTextParts(prediction.content)
+				}
+			)
+
+			messages.push(
+				{
+					role: Raw.ChatRole.User,
+					content: toTextParts('Re-evaluate and improve the answer. Do not output any additional content. Return in the following format \n```\n// Your revised code goes here\n```')
+				}
+			)
+
+		}
 
 		logContext.setPrompt(messages);
 		telemetryBuilder.setPrompt(messages);
