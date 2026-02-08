@@ -22,9 +22,10 @@ import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from '../../../../util/vs/platform/instantiation/common/serviceCollection';
 import { ChatRequestTurn, ChatResponseMarkdownPart, ChatResponseTurn2, ChatToolInvocationPart } from '../../../../vscodeTypes';
+import { IClaudeCodeModels, NoClaudeModelsAvailableError } from '../../../agents/claude/node/claudeCodeModels';
 import { ClaudeCodeSessionService, IClaudeCodeSessionService } from '../../../agents/claude/node/claudeCodeSessionService';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
-import { ClaudeChatSessionContentProvider } from '../claudeChatSessionContentProvider';
+import { ClaudeChatSessionContentProvider, UNAVAILABLE_MODEL_ID } from '../claudeChatSessionContentProvider';
 
 // Mock types for testing
 interface MockClaudeSession {
@@ -37,6 +38,7 @@ interface MockClaudeSession {
 
 describe('ChatSessionContentProvider', () => {
 	let mockSessionService: IClaudeCodeSessionService;
+	let mockClaudeCodeModels: IClaudeCodeModels;
 	let provider: ClaudeChatSessionContentProvider;
 	const store = new DisposableStore();
 	let accessor: ITestingServicesAccessor;
@@ -47,12 +49,23 @@ describe('ChatSessionContentProvider', () => {
 			getSession: vi.fn()
 		} as any;
 
+		mockClaudeCodeModels = {
+			resolveModel: vi.fn().mockResolvedValue('claude-3-5-sonnet-20241022'),
+			getDefaultModel: vi.fn().mockResolvedValue('claude-3-5-sonnet-20241022'),
+			setDefaultModel: vi.fn().mockResolvedValue(undefined),
+			getModels: vi.fn().mockResolvedValue([
+				{ id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' },
+				{ id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku' }
+			])
+		} as any;
+
 		const serviceCollection = store.add(createExtensionUnitTestingServices());
 
 		const workspaceService = new TestWorkspaceService([workspaceFolderUri]);
 		serviceCollection.set(IWorkspaceService, workspaceService);
 
 		serviceCollection.define(IClaudeCodeSessionService, mockSessionService);
+		serviceCollection.define(IClaudeCodeModels, mockClaudeCodeModels);
 		accessor = serviceCollection.createTestingAccessor();
 		const instaService = accessor.get(IInstantiationService);
 		provider = instaService.createInstance(ClaudeChatSessionContentProvider);
@@ -105,10 +118,11 @@ describe('ChatSessionContentProvider', () => {
 		it('returns empty history when no existing session', async () => {
 			vi.mocked(mockSessionService.getSession).mockResolvedValue(undefined);
 
-			const result = await provider.provideChatSessionContent('test-session', CancellationToken.None);
+			const sessionUri = createClaudeSessionUri('test-session');
+			const result = await provider.provideChatSessionContent(sessionUri, CancellationToken.None);
 
 			expect(result.history).toEqual([]);
-			expect(mockSessionService.getSession).toHaveBeenCalledWith('test-session', CancellationToken.None);
+			expect(mockSessionService.getSession).toHaveBeenCalledWith(sessionUri, CancellationToken.None);
 		});
 
 		it('converts user messages to ChatRequestTurn2', async () => {
@@ -126,8 +140,8 @@ describe('ChatSessionContentProvider', () => {
 			};
 
 			vi.mocked(mockSessionService.getSession).mockResolvedValue(mockSession as any);
-
-			const result = await provider.provideChatSessionContent('test-session', CancellationToken.None);
+			const sessionUri = createClaudeSessionUri('test-session');
+			const result = await provider.provideChatSessionContent(sessionUri, CancellationToken.None);
 
 			expect(mapHistoryForSnapshot(result.history)).toMatchInlineSnapshot(`
 				[
@@ -166,7 +180,8 @@ describe('ChatSessionContentProvider', () => {
 
 			vi.mocked(mockSessionService.getSession).mockResolvedValue(mockSession as any);
 
-			const result = await provider.provideChatSessionContent('test-session', CancellationToken.None);
+			const sessionUri = createClaudeSessionUri('test-session');
+			const result = await provider.provideChatSessionContent(sessionUri, CancellationToken.None);
 
 			expect(mapHistoryForSnapshot(result.history)).toMatchInlineSnapshot(`
 				[
@@ -212,7 +227,8 @@ describe('ChatSessionContentProvider', () => {
 
 			vi.mocked(mockSessionService.getSession).mockResolvedValue(mockSession as any);
 
-			const result = await provider.provideChatSessionContent('test-session', CancellationToken.None);
+			const sessionUri = createClaudeSessionUri('test-session');
+			const result = await provider.provideChatSessionContent(sessionUri, CancellationToken.None);
 
 			expect(mapHistoryForSnapshot(result.history)).toMatchInlineSnapshot(`
 				[
@@ -266,7 +282,8 @@ describe('ChatSessionContentProvider', () => {
 
 		vi.mocked(mockSessionService.getSession).mockResolvedValue(mockSession as any);
 
-		const result = await provider.provideChatSessionContent('test-session', CancellationToken.None);
+		const sessionUri = createClaudeSessionUri('test-session');
+		const result = await provider.provideChatSessionContent(sessionUri, CancellationToken.None);
 
 		expect(mapHistoryForSnapshot(result.history)).toMatchInlineSnapshot(`
 			[
@@ -347,7 +364,8 @@ describe('ChatSessionContentProvider', () => {
 
 		vi.mocked(mockSessionService.getSession).mockResolvedValue(mockSession as any);
 
-		const result = await provider.provideChatSessionContent('test-session', CancellationToken.None);
+		const sessionUri = createClaudeSessionUri('test-session');
+		const result = await provider.provideChatSessionContent(sessionUri, CancellationToken.None);
 
 		expect(mapHistoryForSnapshot(result.history)).toMatchInlineSnapshot(`
 			[
@@ -400,7 +418,8 @@ describe('ChatSessionContentProvider', () => {
 
 		vi.mocked(mockSessionService.getSession).mockResolvedValue(mockSession as any);
 
-		const result = await provider.provideChatSessionContent('test-session', CancellationToken.None);
+		const sessionUri = createClaudeSessionUri('test-session');
+		const result = await provider.provideChatSessionContent(sessionUri, CancellationToken.None);
 
 		expect(mapHistoryForSnapshot(result.history)).toMatchInlineSnapshot(`
 			[
@@ -429,11 +448,63 @@ describe('ChatSessionContentProvider', () => {
 		const realSessionService = instaService.createInstance(ClaudeCodeSessionService);
 
 		const childInstantiationService = instaService.createChild(new ServiceCollection(
-			[IClaudeCodeSessionService, realSessionService]
+			[IClaudeCodeSessionService, realSessionService],
+			[IClaudeCodeModels, mockClaudeCodeModels]
 		));
 		const provider = childInstantiationService.createInstance(ClaudeChatSessionContentProvider);
 
-		const result = await provider.provideChatSessionContent('4c289ca8-f8bb-4588-8400-88b78beb784d', CancellationToken.None);
+		const sessionUri = createClaudeSessionUri('4c289ca8-f8bb-4588-8400-88b78beb784d');
+		const result = await provider.provideChatSessionContent(sessionUri, CancellationToken.None);
 		expect(mapHistoryForSnapshot(result.history)).toMatchSnapshot();
 	});
+
+	describe('unavailable model handling', () => {
+		it('shows unavailable option when no models available', async () => {
+			vi.mocked(mockClaudeCodeModels.getModels).mockResolvedValue([]);
+
+			const options = await provider.provideChatSessionProviderOptions();
+			const modelGroup = options.optionGroups?.find(g => g.id === 'model');
+
+			expect(modelGroup?.items).toHaveLength(1);
+			expect(modelGroup?.items[0]).toEqual({
+				id: UNAVAILABLE_MODEL_ID,
+				name: 'Unavailable',
+				description: 'No Claude models with Messages API found',
+			});
+		});
+
+		it('ignores unavailable model selection in provideHandleOptionsChange', async () => {
+			const sessionUri = createClaudeSessionUri('test-session');
+			await provider.provideHandleOptionsChange(
+				sessionUri,
+				[{ optionId: 'model', value: UNAVAILABLE_MODEL_ID }],
+				CancellationToken.None
+			);
+
+			expect(mockClaudeCodeModels.setDefaultModel).not.toHaveBeenCalled();
+		});
+
+		it('throws NoClaudeModelsAvailableError from getModelIdForSession when no models exist', async () => {
+			vi.mocked(mockClaudeCodeModels.getModels).mockResolvedValue([]);
+			vi.mocked(mockClaudeCodeModels.getDefaultModel).mockRejectedValue(new NoClaudeModelsAvailableError());
+
+			await expect(provider.getModelIdForSession('test-session')).rejects.toThrow(NoClaudeModelsAvailableError);
+		});
+
+		it('returns unavailable model in provideChatSessionContent when no models exist', async () => {
+			vi.mocked(mockSessionService.getSession).mockResolvedValue(undefined);
+			vi.mocked(mockClaudeCodeModels.getModels).mockResolvedValue([]);
+			vi.mocked(mockClaudeCodeModels.getDefaultModel).mockRejectedValue(new NoClaudeModelsAvailableError());
+
+			const sessionUri = createClaudeSessionUri('test-session');
+			const result = await provider.provideChatSessionContent(sessionUri, CancellationToken.None);
+
+			expect(result.options?.['model']).toBe(UNAVAILABLE_MODEL_ID);
+		});
+	});
 });
+
+
+function createClaudeSessionUri(id: string): URI {
+	return URI.parse(`claude-code:/${id}`);
+}

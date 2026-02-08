@@ -10,7 +10,7 @@ import { copyFile, mkdir } from 'fs/promises';
 import { glob } from 'glob';
 import * as path from 'path';
 
-const REPO_ROOT = path.join(__dirname);
+const REPO_ROOT = import.meta.dirname;
 const isWatch = process.argv.includes('--watch');
 const isDev = process.argv.includes('--dev');
 const isPreRelease = process.argv.includes('--prerelease');
@@ -36,18 +36,29 @@ const baseNodeBuildOptions = {
 		'applicationinsights-native-metrics',
 		'@opentelemetry/instrumentation',
 		'@azure/opentelemetry-instrumentation-azure-sdk',
-		'zeromq',
 		'electron', // this is for simulation workbench,
 		'sqlite3',
-		'onnxruntime-node', // native addon kept external to avoid .node loader errors
-		'chonkie', // keep chunking lib external to avoid ESM/CJS named export warnings
+		'node-pty', // Required by @github/copilot
+		'@github/copilot',
 		...(isDev ? [] : ['dotenv', 'source-map-support'])
 	],
 	platform: 'node',
 	mainFields: ["module", "main"], // needed for jsonc-parser,
 	define: {
-		'process.env.APPLICATIONINSIGHTS_CONFIGURATION_CONTENT': '"{}"'
+		'process.env.APPLICATIONINSIGHTS_CONFIGURATION_CONTENT': JSON.stringify(JSON.stringify({
+			proxyHttpUrl: "",
+			proxyHttpsUrl: ""
+		}))
 	},
+} satisfies esbuild.BuildOptions;
+
+const webviewBuildOptions = {
+	...baseBuildOptions,
+	platform: 'browser',
+	target: 'es2024', // Electron 34 -> Chrome 132 -> ES2024
+	entryPoints: [
+		{ in: 'src/extension/completions-core/vscode-node/extension/src/copilotPanel/webView/suggestionsPanelWebview.ts', out: 'suggestionsPanelWebview' },
+	],
 } satisfies esbuild.BuildOptions;
 
 const nodeExtHostTestGlobs = [
@@ -114,10 +125,10 @@ const sanityTestBundlePlugin: esbuild.Plugin = {
 };
 
 const importMetaPlugin: esbuild.Plugin = {
-	name: 'claudeCodeImportMetaPlugin',
+	name: 'claudeAgentSdkImportMetaPlugin',
 	setup(build) {
-		// Handle import.meta.url in @anthropic-ai/claude-code package
-		build.onLoad({ filter: /node_modules[\/\\]@anthropic-ai[\/\\]claude-code[\/\\].*\.mjs$/ }, async (args) => {
+		// Handle import.meta.url in @anthropic-ai/claude-agent-sdk package
+		build.onLoad({ filter: /node_modules[\/\\]@anthropic-ai[\/\\]claude-agent-sdk[\/\\].*\.mjs$/ }, async (args) => {
 			const contents = await fs.promises.readFile(args.path, 'utf8');
 			return {
 				contents: contents.replace(
@@ -163,43 +174,6 @@ const shimVsCodeTypesPlugin: esbuild.Plugin = {
 	}
 };
 
-
-const nativeNodeModulesPlugin: esbuild.Plugin = {
-	name: 'native-node-modules',
-	setup(build) {
-		// If a ".node" file is imported within a module in the "file" namespace, resolve
-		// it to an absolute path and put it into the "node-file" virtual namespace.
-		build.onResolve({ filter: /\.node$/, namespace: 'file' }, args => ({
-			path: require.resolve(args.path, { paths: [args.resolveDir] }),
-			namespace: 'node-file',
-		}))
-
-		// Files in the "node-file" virtual namespace call "require()" on the
-		// path from esbuild of the ".node" file in the output directory.
-		build.onLoad({ filter: /.*/, namespace: 'node-file' }, args => ({
-			contents: `
-        import path from ${JSON.stringify(args.path)}
-        try { module.exports = require(path) }
-        catch {}
-      `,
-		}))
-
-		// If a ".node" file is imported within a module in the "node-file" namespace, put
-		// it in the "file" namespace where esbuild's default loading behavior will handle
-		// it. It is already an absolute path since we resolved it to one above.
-		build.onResolve({ filter: /\.node$/, namespace: 'node-file' }, args => ({
-			path: args.path,
-			namespace: 'file',
-		}))
-
-		// Tell esbuild's default loading behavior to use the "file" loader for
-		// these ".node" files.
-		let opts = build.initialOptions
-		opts.loader = opts.loader || {}
-		opts.loader['.node'] = 'file'
-	},
-}
-
 const nodeExtHostBuildOptions = {
 	...baseNodeBuildOptions,
 	entryPoints: [
@@ -209,11 +183,12 @@ const nodeExtHostBuildOptions = {
 		{ in: './src/platform/diff/node/diffWorkerMain.ts', out: 'diffWorker' },
 		{ in: './src/platform/tfidf/node/tfidfWorker.ts', out: 'tfidfWorker' },
 		{ in: './src/extension/onboardDebug/node/copilotDebugWorker/index.ts', out: 'copilotDebugCommand' },
+		{ in: './src/extension/chatSessions/vscode-node/copilotCLIShim.ts', out: 'copilotCLIShim' },
 		{ in: './src/test-extension.ts', out: 'test-extension' },
 		{ in: './src/sanity-test-extension.ts', out: 'sanity-test-extension' },
 	],
 	loader: { '.ps1': 'text' },
-	plugins: [testBundlePlugin, sanityTestBundlePlugin, importMetaPlugin, nativeNodeModulesPlugin],
+	plugins: [testBundlePlugin, sanityTestBundlePlugin, importMetaPlugin],
 	external: [
 		...baseNodeBuildOptions.external,
 		'vscode'
@@ -279,8 +254,8 @@ const nodeSimulationWorkbenchUIBuildOptions = {
 
 async function typeScriptServerPluginPackageJsonInstall(): Promise<void> {
 	await mkdir('./node_modules/@vscode/copilot-typescript-server-plugin', { recursive: true });
-	const source = path.join(__dirname, './src/extension/typescriptContext/serverPlugin/package.json');
-	const destination = path.join(__dirname, './node_modules/@vscode/copilot-typescript-server-plugin/package.json');
+	const source = path.join(import.meta.dirname, './src/extension/typescriptContext/serverPlugin/package.json');
+	const destination = path.join(import.meta.dirname, './node_modules/@vscode/copilot-typescript-server-plugin/package.json');
 	try {
 		await copyFile(source, destination);
 	} catch (error) {
@@ -391,12 +366,13 @@ async function main() {
 			esbuild.build(nodeSimulationWorkbenchUIBuildOptions),
 			esbuild.build(nodeExtHostSimulationTestOptions),
 			esbuild.build(typeScriptServerPluginBuildOptions),
+			esbuild.build(webviewBuildOptions),
 		]);
 	}
 }
 
 function applyPackageJsonPatch(isPreRelease: boolean) {
-	const packagejsonPath = path.join(__dirname, './package.json');
+	const packagejsonPath = path.join(import.meta.dirname, './package.json');
 	const json = JSON.parse(fs.readFileSync(packagejsonPath).toString());
 
 	const newProps: any = {

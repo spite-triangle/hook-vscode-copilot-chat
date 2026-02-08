@@ -5,8 +5,7 @@
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { LanguageModelTextPart, LanguageModelToolInformation } from 'vscode';
-import { HARD_TOOL_LIMIT, IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
-import { IExperimentationService } from '../../../../../platform/telemetry/common/nullExperimentationService';
+import { HARD_TOOL_LIMIT } from '../../../../../platform/configuration/common/configurationService';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry';
 import { ITestingServicesAccessor } from '../../../../../platform/test/node/services';
 import { shuffle } from '../../../../../util/vs/base/common/arrays';
@@ -28,11 +27,9 @@ describe('Virtual Tools - Grouping', () => {
 		constructor(
 			_tools: readonly LanguageModelToolInformation[],
 			@IInstantiationService _instantiationService: IInstantiationService,
-			@ITelemetryService _telemetryService: ITelemetryService,
-			@IConfigurationService _configurationService: IConfigurationService,
-			@IExperimentationService _experimentationService: IExperimentationService
+			@ITelemetryService _telemetryService: ITelemetryService
 		) {
-			super(_tools, _instantiationService, _telemetryService, _configurationService, _experimentationService);
+			super(_tools, _instantiationService, _telemetryService);
 			this._grouper = mockGrouper;
 		}
 
@@ -61,6 +58,9 @@ describe('Virtual Tools - Grouping', () => {
 				const groups = groupBy(tools, t => t.name.split('_')[0]);
 				root.contents = [];
 				for (const [groupName, groupTools] of Object.entries(groups)) {
+					if (!groupTools) {
+						continue;
+					}
 					if (groupTools.length < 3) {
 						root.contents.push(...groupTools);
 						continue;
@@ -69,7 +69,7 @@ describe('Virtual Tools - Grouping', () => {
 						`${VIRTUAL_TOOL_NAME_PREFIX}${groupName}`,
 						`Group of tools: ${groupName}`,
 						0,
-						{ groups: [], toolsetKey: '', wasExpandedByDefault: true }
+						{ wasExpandedByDefault: true }
 					);
 					groupTool.contents = groupTools;
 					root.contents.push(groupTool);
@@ -450,7 +450,7 @@ describe('Virtual Tools - Grouping', () => {
 						`${VIRTUAL_TOOL_NAME_PREFIX}collapsible`,
 						'Collapsible group',
 						0,
-						{ groups: [], toolsetKey: '', canBeCollapsed: true, wasExpandedByDefault: true }
+						{ canBeCollapsed: true, wasExpandedByDefault: true }
 					);
 					collapsibleGroup.contents = tools.slice(0, 2);
 					collapsibleGroup.isExpanded = true;
@@ -459,7 +459,7 @@ describe('Virtual Tools - Grouping', () => {
 						`${VIRTUAL_TOOL_NAME_PREFIX}noncollapsible`,
 						'Non-collapsible group',
 						0,
-						{ groups: [], toolsetKey: '', canBeCollapsed: false, wasExpandedByDefault: true }
+						{ canBeCollapsed: false, wasExpandedByDefault: true }
 					);
 					nonCollapsibleGroup.contents = tools.slice(2, 4);
 					nonCollapsibleGroup.isExpanded = true;
@@ -508,7 +508,7 @@ describe('Virtual Tools - Grouping', () => {
 						`${VIRTUAL_TOOL_NAME_PREFIX}noncollapsible`,
 						'Non-collapsible group',
 						5, // Initial lastUsedOnTurn
-						{ groups: [], toolsetKey: '', canBeCollapsed: false, wasExpandedByDefault: true }
+						{ canBeCollapsed: false, wasExpandedByDefault: true }
 					);
 					nonCollapsibleGroup.contents = tools.slice(0, 3);
 					nonCollapsibleGroup.isExpanded = true;

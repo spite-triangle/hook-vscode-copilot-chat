@@ -15,9 +15,12 @@ export class ChatResponseMarkdownPart {
 }
 
 export class ChatResponseCodeblockUriPart {
+	isEdit?: boolean;
 	value: vscode.Uri;
-	constructor(value: vscode.Uri) {
+	undoStopId?: string;
+	constructor(value: vscode.Uri, isEdit?: boolean, undoStopId?: string) {
 		this.value = value;
+		this.undoStopId = undoStopId;
 	}
 }
 
@@ -54,6 +57,20 @@ export class ChatResponseThinkingProgressPart {
 		this.value = value;
 		this.id = id;
 		this.metadata = metadata;
+	}
+}
+
+export class ChatResponseExternalEditPart {
+	applied: Thenable<string>;
+	didGetApplied!: (value: string) => void;
+
+	constructor(
+		public uris: vscode.Uri[],
+		public callback: () => Thenable<unknown>,
+	) {
+		this.applied = new Promise<string>((resolve) => {
+			this.didGetApplied = resolve;
+		});
 	}
 }
 
@@ -185,6 +202,13 @@ export class ChatResponseNotebookEditPart implements vscode.ChatResponseNotebook
 	}
 }
 
+export class ChatResponseWorkspaceEditPart implements vscode.ChatResponseWorkspaceEditPart {
+	edits: vscode.ChatWorkspaceFileEdit[];
+	constructor(edits: vscode.ChatWorkspaceFileEdit[]) {
+		this.edits = edits;
+	}
+}
+
 export class ChatResponseConfirmationPart {
 	title: string;
 	message: string;
@@ -198,13 +222,50 @@ export class ChatResponseConfirmationPart {
 	}
 }
 
-export class ChatPrepareToolInvocationPart {
-	toolName: string;
-	/**
-	 * @param toolName The name of the tool being prepared for invocation.
-	 */
-	constructor(toolName: string) {
-		this.toolName = toolName;
+export enum ChatQuestionType {
+	Text = 1,
+	SingleSelect = 2,
+	MultiSelect = 3
+}
+
+export class ChatQuestion implements vscode.ChatQuestion {
+	id: string;
+	type: vscode.ChatQuestionType;
+	title: string;
+	message?: string | vscode.MarkdownString;
+	options?: vscode.ChatQuestionOption[];
+	defaultValue?: string | string[];
+	allowFreeformInput?: boolean;
+
+	constructor(
+		id: string,
+		type: vscode.ChatQuestionType,
+		title: string,
+		options?: {
+			message?: string | vscode.MarkdownString;
+			options?: vscode.ChatQuestionOption[];
+			defaultValue?: string | string[];
+			allowFreeformInput?: boolean;
+		}
+	) {
+		this.id = id;
+		this.type = type;
+		this.title = title;
+		if (options) {
+			this.message = options.message;
+			this.options = options.options;
+			this.defaultValue = options.defaultValue;
+			this.allowFreeformInput = options.allowFreeformInput;
+		}
+	}
+}
+
+export class ChatResponseQuestionCarouselPart implements vscode.ChatResponseQuestionCarouselPart {
+	questions: vscode.ChatQuestion[];
+	allowSkip: boolean;
+	constructor(questions: vscode.ChatQuestion[], allowSkip?: boolean) {
+		this.questions = questions;
+		this.allowSkip = allowSkip ?? false;
 	}
 }
 
@@ -287,6 +348,19 @@ export class LanguageModelTextPart2 extends LanguageModelTextPart {
 		this.audience = audience;
 	}
 }
+
+export class LanguageModelThinkingPart implements vscode.LanguageModelThinkingPart {
+	value: string | string[];
+	id?: string;
+	metadata?: { readonly [key: string]: any };
+
+	constructor(value: string | string[], id?: string, metadata?: { readonly [key: string]: any }) {
+		this.value = value;
+		this.id = id;
+		this.metadata = metadata;
+	}
+}
+
 export class LanguageModelDataPart implements vscode.LanguageModelDataPart {
 	mimeType: string;
 	data: Uint8Array<ArrayBufferLike>;
@@ -377,9 +451,9 @@ export class LanguageModelToolMCPSource implements vscode.LanguageModelToolMCPSo
 export class LanguageModelToolCallPart implements vscode.LanguageModelToolCallPart {
 	callId: string;
 	name: string;
-	input: any;
+	input: object;
 
-	constructor(callId: string, name: string, input: any) {
+	constructor(callId: string, name: string, input: object) {
 		this.callId = callId;
 		this.name = name;
 
@@ -417,6 +491,46 @@ export enum LanguageModelChatMessageRole {
 	System = 3
 }
 
+export enum LanguageModelChatToolMode {
+	Auto = 1,
+	Required = 2
+}
+
+export class LanguageModelChatMessage implements vscode.LanguageModelChatMessage {
+	role: LanguageModelChatMessageRole;
+	content: Array<any>;
+	name: string | undefined;
+
+	constructor(role: LanguageModelChatMessageRole, content: string | Array<any>, name?: string) {
+		this.role = role;
+		this.content = typeof content === 'string' ? [{ type: 'text', value: content }] : content;
+		this.name = name;
+	}
+
+	static User(content: string | Array<any>, name?: string): LanguageModelChatMessage {
+		return new LanguageModelChatMessage(LanguageModelChatMessageRole.User, content, name);
+	}
+
+	static Assistant(content: string | Array<any>, name?: string): LanguageModelChatMessage {
+		return new LanguageModelChatMessage(LanguageModelChatMessageRole.Assistant, content, name);
+	}
+}
+
+export class McpToolInvocationContentData implements vscode.McpToolInvocationContentData {
+	mimeType: string;
+	data: Uint8Array;
+
+	constructor(data: Uint8Array, mimeType: string) {
+		this.data = data;
+		this.mimeType = mimeType;
+	}
+}
+
+export interface ChatMcpToolInvocationData extends vscode.ChatMcpToolInvocationData {
+	input: string;
+	output: McpToolInvocationContentData[];
+}
+
 export class ChatToolInvocationPart {
 	toolName: string;
 	toolCallId: string;
@@ -426,7 +540,7 @@ export class ChatToolInvocationPart {
 	pastTenseMessage?: string | vscode.MarkdownString;
 	isConfirmed?: boolean;
 	isComplete?: boolean;
-	toolSpecificData?: vscode.ChatTerminalToolInvocationData;
+	toolSpecificData?: vscode.ChatTerminalToolInvocationData | ChatMcpToolInvocationData;
 
 	constructor(toolName: string,
 		toolCallId: string,
@@ -445,6 +559,12 @@ export class ChatResponseTurn2 implements vscode.ChatResponseTurn2 {
 		readonly participant: string,
 		readonly command?: string
 	) { }
+}
+
+export enum ChatSessionStatus {
+	Failed = 0,
+	Completed = 1,
+	InProgress = 2
 }
 
 export class LanguageModelError extends Error {
@@ -469,5 +589,114 @@ export class LanguageModelError extends Error {
 		super(message, { cause });
 		this.name = LanguageModelError.#name;
 		this.code = code ?? '';
+	}
+}
+
+/**
+ * Represents a chat-related resource, such as a custom agent, instructions, prompt file, or skill.
+ */
+export class ChatResource implements vscode.ChatResource {
+	readonly uri: vscode.Uri;
+
+	constructor(uri: vscode.Uri) {
+		this.uri = uri;
+	}
+}
+
+
+/**
+ * McpStdioServerDefinition represents an MCP server available by running
+ * a local process and operating on its stdin and stdout streams. The process
+ * will be spawned as a child process of the extension host and by default
+ * will not run in a shell environment.
+ */
+export class McpStdioServerDefinition {
+	/**
+	 * The human-readable name of the server.
+	 */
+	readonly label: string;
+
+	/**
+	 * The working directory used to start the server.
+	 */
+	cwd?: vscode.Uri;
+
+	/**
+	 * The command used to start the server. Node.js-based servers may use
+	 * `process.execPath` to use the editor's version of Node.js to run the script.
+	 */
+	command: string;
+
+	/**
+	 * Additional command-line arguments passed to the server.
+	 */
+	args: string[];
+
+	/**
+	 * Optional additional environment information for the server. Variables
+	 * in this environment will overwrite or remove (if null) the default
+	 * environment variables of the editor's extension host.
+	 */
+	env: Record<string, string | number | null>;
+
+	/**
+	 * Optional version identification for the server. If this changes, the
+	 * editor will indicate that tools have changed and prompt to refresh them.
+	 */
+	version?: string;
+
+	/**
+	 * @param label The human-readable name of the server.
+	 * @param command The command used to start the server.
+	 * @param args Additional command-line arguments passed to the server.
+	 * @param env Optional additional environment information for the server.
+	 * @param version Optional version identification for the server.
+	 */
+	constructor(label: string, command: string, args?: string[], env?: Record<string, string | number | null>, version?: string) {
+		this.label = label;
+		this.command = command;
+		this.args = args ?? [];
+		this.env = env ?? {};
+		this.version = version;
+	}
+}
+
+/**
+ * McpHttpServerDefinition represents an MCP server available using the
+ * Streamable HTTP transport.
+ */
+export class McpHttpServerDefinition {
+	/**
+	 * The human-readable name of the server.
+	 */
+	readonly label: string;
+
+	/**
+	 * The URI of the server. The editor will make a POST request to this URI
+	 * to begin each session.
+	 */
+	uri: vscode.Uri;
+
+	/**
+	 * Optional additional heads included with each request to the server.
+	 */
+	headers: Record<string, string>;
+
+	/**
+	 * Optional version identification for the server. If this changes, the
+	 * editor will indicate that tools have changed and prompt to refresh them.
+	 */
+	version?: string;
+
+	/**
+	 * @param label The human-readable name of the server.
+	 * @param uri The URI of the server.
+	 * @param headers Optional additional heads included with each request to the server.
+	 */
+	constructor(label: string, uri: vscode.Uri, headers?: Record<string, string>, version?: string) {
+		this.label = label;
+		this.uri = uri;
+		this.headers = headers ?? {};
+		this.version = version;
 	}
 }

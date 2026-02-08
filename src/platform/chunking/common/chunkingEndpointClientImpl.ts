@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RequestType } from '@vscode/copilot-api';
-import { workspace } from 'vscode';
 import { createRequestHMAC, createSha256Hash } from '../../../util/common/crypto';
 import { CallTracker, TelemetryCorrelationId } from '../../../util/common/telemetryCorrelationId';
+import { TokenizerType } from '../../../util/common/tokenizer';
 import { coalesce } from '../../../util/vs/base/common/arrays';
 import { DeferredPromise, raceCancellationError, timeout } from '../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
@@ -27,9 +27,10 @@ import { postRequest } from '../../networking/common/networking';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { getWorkspaceFileDisplayPath, IWorkspaceService } from '../../workspace/common/workspaceService';
+import { get_max_chunk_size_token } from '../node/naiveChunker';
+import { INaiveChunkingService } from '../node/naiveChunkerService';
 import { FileChunkWithEmbedding, FileChunkWithOptionalEmbedding } from './chunk';
 import { ChunkableContent, ComputeBatchInfo, EmbeddingsComputeQos, IChunkingEndpointClient } from './chunkingEndpointClient';
-import { IChunkingService } from './chunkingService';
 import { stripChunkTextMetadata } from './chunkingStringUtils';
 
 type RequestTask = (attempt: number) => Promise<Response>;
@@ -300,7 +301,7 @@ export class ChunkingEndpointClientImpl extends Disposable implements IChunkingE
 	private readonly _requestHmac = new Lazy(() => createRequestHMAC(env.HMAC_SECRET));
 
 	constructor(
-		@IChunkingService private readonly _apiChunkingService: IChunkingService,
+		@INaiveChunkingService private readonly naiveChunkingService: INaiveChunkingService,
 		@IEmbeddingsComputer private readonly embeddingsComputer: IEmbeddingsComputer,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICAPIClientService private readonly _capiClientService: ICAPIClientService,
@@ -345,14 +346,13 @@ export class ChunkingEndpointClientImpl extends Disposable implements IChunkingE
 
 		try {
 			// 1. 使用 NaiveChunkingService 进行分块
-			let maxToken = workspace.getConfiguration('github.copilot.embeddingModel').get('max_chunk_tokens', 250);
-			let check = workspace.getConfiguration('github.copilot.embeddingModel').get('check_chunk_token', true);
-			const chunks = await this._apiChunkingService.chunkFile(
+			const chunks = await this.naiveChunkingService.chunkFile(
+				{ tokenizer: TokenizerType.O200K },
 				content.uri,
 				text,
 				{
-					maxTokenLength: maxToken, // 或从配置中获取
-					validateChunkLengths: check
+					maxTokenLength: get_max_chunk_size_token(), // 或从配置中获取
+					validateChunkLengths: true
 				},
 				token
 			);
@@ -419,7 +419,6 @@ export class ChunkingEndpointClientImpl extends Disposable implements IChunkingE
 			return undefined;
 		}
 	}
-
 
 	private async doComputeChunksAndEmbeddings(
 		authToken: string,

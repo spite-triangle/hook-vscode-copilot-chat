@@ -5,7 +5,7 @@
 
 
 import { RequestMetadata } from '@vscode/copilot-api';
-import type { LanguageModelChat } from 'vscode';
+import type { Event, LanguageModelChat } from 'vscode';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { TokenizerType } from '../../../util/common/tokenizer';
 import type { ChatRequest } from '../../../vscodeTypes';
@@ -42,6 +42,9 @@ export type IChatModelCapabilities = {
 		max_prompt_tokens?: number;
 		max_output_tokens?: number;
 		max_context_window_tokens?: number;
+		vision?: {
+			max_prompt_images?: number;
+		};
 	};
 	supports: {
 		parallel_tool_calls?: boolean;
@@ -58,7 +61,11 @@ export type IEmbeddingModelCapabilities = {
 	type: 'embeddings';
 	family: string;
 	tokenizer: TokenizerType;
-	limits?: { max_inputs?: number };
+	chunk_strategy?: string;
+	limits?: {
+		max_inputs?: number,
+		max_token?: number,
+	};
 };
 
 type ICompletionModelCapabilities = {
@@ -69,7 +76,8 @@ type ICompletionModelCapabilities = {
 
 export enum ModelSupportedEndpoint {
 	ChatCompletions = '/chat/completions',
-	Responses = '/responses'
+	Responses = '/responses',
+	Messages = '/v1/messages'
 }
 
 export interface IModelAPIResponse {
@@ -78,10 +86,14 @@ export interface IModelAPIResponse {
 	policy?: ModelPolicy;
 	model_picker_enabled: boolean;
 	preview?: boolean;
+	baseUrl?: string;				// 新增字段
+	apiKey?: string;				// 新增字段
+	model?: string;					// 新增字段
 	is_chat_default: boolean;
 	is_chat_fallback: boolean;
 	version: string;
-	warning_message?: string;
+	warning_messages?: { code: string; message: string }[];
+	info_messages?: { code: string; message: string }[];
 	billing?: { is_premium: boolean; multiplier: number; restricted_to?: string[] };
 	capabilities: IChatModelCapabilities | ICompletionModelCapabilities | IEmbeddingModelCapabilities;
 	supported_endpoints?: ModelSupportedEndpoint[];
@@ -91,6 +103,8 @@ export interface IModelAPIResponse {
 export type IChatModelInformation = IModelAPIResponse & {
 	capabilities: IChatModelCapabilities;
 	urlOrRequestMetadata?: string | RequestMetadata;
+	requestHeaders?: Readonly<Record<string, string>>;
+	zeroDataRetentionEnabled?: boolean;
 };
 
 export function isChatModelInformation(model: IModelAPIResponse): model is IChatModelInformation {
@@ -111,11 +125,17 @@ export function isCompletionModelInformation(model: IModelAPIResponse): model is
 	return model.capabilities.type === 'completion';
 }
 
-export type ChatEndpointFamily = 'gpt-4.1' | 'gpt-4o-mini' | 'copilot-base';
+export type ChatEndpointFamily = 'gpt-4.1' | 'gpt-5-mini' | 'copilot-base' | 'copilot-fast';
 export type EmbeddingsEndpointFamily = 'text3small' | 'metis';
 
 export interface IEndpointProvider {
 	readonly _serviceBrand: undefined;
+
+	/**
+	 * Event fired when models are refreshed from the server.
+	 * Used to notify Language Model UI to update the model list.
+	 */
+	readonly onDidModelsRefresh?: Event<void>;
 
 	/**
 	 * Gets all the completion models known by the endpoint provider.

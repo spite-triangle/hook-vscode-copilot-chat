@@ -4,7 +4,6 @@
 		"jsx": "react",
 		"jsxFactory": "vscpp",
 		"jsxFragmentFactory": "vscppf",
-				"moduleResolution": "node",
 		"rootDir": ".",
 		"types": [
 			"minimist",
@@ -17,13 +16,9 @@
 		],
 		// Needed for tsx to run test files
 		"paths": {
-			"vscode": ["./src/util/common/test/shims/vscodeTypesShim.ts"],
-			"#lib/*": ["./src/extension/completions-core/lib/src/*"],
-			"#prompt/*": ["./src/extension/completions-core/prompt/src/*"],
-			"#types": ["./src/extension/completions-core/types/src"]
+			"vscode": ["./src/util/common/test/shims/vscodeTypesShim.ts"]
 		}
 	},
-
 	"include": [
 		"vscodeTypes.ts",
 		"src",
@@ -38,6 +33,7 @@
 		"src/extension/test/node/fixtures/**/*",
 		"src/extension/prompts/node/test/fixtures/**/*",
 		"src/extension/typescriptContext/serverPlugin/fixtures/**",
+		"src/extension/completions-core/vscode-node/extension/src/copilotPanel/webView/suggestionsPanelWebview.ts",
 		"test/aml/out"
 	]
 }

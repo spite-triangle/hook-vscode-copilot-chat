@@ -32,7 +32,6 @@ export default defineConfig(({ mode }) => ({
 			ignored: exclude,
 		}
 	},
-	assetsInclude: ['**/*.node'], // 将 .node 文件包含为静态资源
 	plugins: [
 		wasm(),
 		topLevelAwait()

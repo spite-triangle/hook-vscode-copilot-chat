@@ -11,9 +11,11 @@ import { CancellationToken, CancellationTokenSource } from '../../../util/vs/bas
 import { URI } from '../../../util/vs/base/common/uri';
 import { LineEdit, LineReplacement, SerializedLineEdit } from '../../../util/vs/editor/common/core/edits/lineEdit';
 import { StringEdit } from '../../../util/vs/editor/common/core/edits/stringEdit';
+import { Position } from '../../../util/vs/editor/common/core/position';
 import { OffsetRange } from '../../../util/vs/editor/common/core/ranges/offsetRange';
 import { StringText } from '../../../util/vs/editor/common/core/text/abstractText';
 import { ChatFetchResponseType, FetchResponse } from '../../chat/common/commonTypes';
+import { ILogger } from '../../log/common/logService';
 import { ISerializedOffsetRange, LogEntry, serializeOffsetRange } from '../../workspaceRecorder/common/workspaceLog';
 import { DocumentId } from './dataTypes/documentId';
 import { Edits } from './dataTypes/edit';
@@ -29,13 +31,19 @@ export const enum ShowNextEditPreference {
 	AroundEdit = 'aroundEdit',
 }
 
-export type PushEdit = (edit: Result<{ edit: LineReplacement; window?: OffsetRange; targetDocument?: DocumentId }, NoNextEditReason>) => void;
+export type StreamedEdit = {
+	readonly edit: LineReplacement;
+	readonly isFromCursorJump: boolean;
+	readonly window?: OffsetRange;
+	readonly targetDocument?: DocumentId;
+}
+
+export type PushEdit = (edit: Result<StreamedEdit, NoNextEditReason>) => void;
 
 export interface IStatelessNextEditProvider {
 	readonly ID: string;
-	readonly dependsOnSelection?: boolean;
 	readonly showNextEditPreference?: ShowNextEditPreference;
-	provideNextEdit(request: StatelessNextEditRequest, pushEdit: PushEdit, logContext: InlineEditRequestLogContext, cancellationToken: CancellationToken): Promise<StatelessNextEditResult>;
+	provideNextEdit(request: StatelessNextEditRequest, pushEdit: PushEdit, logger: ILogger, logContext: InlineEditRequestLogContext, cancellationToken: CancellationToken): Promise<StatelessNextEditResult>;
 	handleAcceptance?(): void;
 	handleRejection?(): void;
 }
@@ -183,45 +191,84 @@ export enum FilteredOutReason {
 }
 
 export namespace NoNextEditReason {
-	export class ActiveDocumentHasNoEdits {
-		public readonly kind = 'activeDocumentHasNoEdits';
+	abstract class NoNextEditReason {
+		abstract toString(): string;
 	}
-	export class NoSuggestions {
+	export class ActiveDocumentHasNoEdits extends NoNextEditReason {
+		public readonly kind = 'activeDocumentHasNoEdits';
+
+		toString(): string {
+			return this.kind;
+		}
+	}
+	export class NoSuggestions extends NoNextEditReason {
 		public readonly kind = 'noSuggestions';
+
 		constructor(
 			public readonly documentBeforeEdits: StringText,
-			public readonly window: OffsetRange | undefined
+			public readonly window: OffsetRange | undefined,
+			public readonly nextCursorPosition?: Position | undefined,
 		) {
+			super();
+		}
+
+		toString(): string {
+			return this.kind;
 		}
 	}
-	export class GotCancelled {
+	export class GotCancelled extends NoNextEditReason {
 		public readonly kind = 'gotCancelled';
-		constructor(public readonly message: 'afterDebounce' | 'afterGettingEndpoint' | 'afterPromptConstruction' | 'afterFetchCall' | 'duringStreaming' | 'afterResponse' | 'afterFailedRebase' | 'beforeExecutingNewRequest') {
+		constructor(public readonly message: 'afterDebounce' | 'afterGettingEndpoint' | 'afterLanguageContextAwait' | 'afterPromptConstruction' | 'afterFetchCall' | 'duringStreaming' | 'afterResponse' | 'afterFailedRebase' | 'beforeExecutingNewRequest' | 'afterArtificialDelay' | 'afterNextCursorPredictionFetch') {
+			super();
+		}
+
+		toString(): string {
+			return `${this.kind}:${this.message}`;
 		}
 	}
-	export class FetchFailure {
+	export class FetchFailure extends NoNextEditReason {
 		public readonly kind = 'fetchFailure';
 		constructor(public readonly error: Error) {
+			super();
+		}
+		toString(): string {
+			return `${this.kind}:${this.error.message}`;
 		}
 	}
-	export class FilteredOut {
+	export class FilteredOut extends NoNextEditReason {
 		public readonly kind = 'filteredOut';
 		constructor(public readonly message: FilteredOutReason | string) {
+			super();
+		}
+		toString(): string {
+			return `${this.kind}:${this.message}`;
 		}
 	}
-	export class PromptTooLarge {
+	export class PromptTooLarge extends NoNextEditReason {
 		public readonly kind = 'promptTooLarge';
-		constructor(public readonly message: 'currentFile' | 'final') {
+		constructor(public readonly message: 'editWindow' | 'currentFile' | 'final') {
+			super();
+		}
+		toString(): string {
+			return `${this.kind}:${this.message}`;
 		}
 	}
-	export class Uncategorized {
+	export class Uncategorized extends NoNextEditReason {
 		public readonly kind = 'uncategorized';
 		constructor(public readonly error: Error) {
+			super();
+		}
+		toString(): string {
+			return `${this.kind}:${this.error.message}`;
 		}
 	}
-	export class Unexpected {
+	export class Unexpected extends NoNextEditReason {
 		public readonly kind = 'unexpected';
 		constructor(public readonly error: Error) {
+			super();
+		}
+		toString(): string {
+			return `${this.kind}:${this.error.message}`;
 		}
 	}
 }
@@ -275,6 +322,7 @@ export interface IStatelessNextEditTelemetry {
 	readonly prompt: string | undefined;
 	readonly promptLineCount: number | undefined;
 	readonly promptCharCount: number | undefined;
+	readonly mergeConflictExpanded: 'normal' | 'only' | undefined;
 
 	/* fetch request info */
 
@@ -299,6 +347,21 @@ export interface IStatelessNextEditTelemetry {
 	readonly nextEditLogprob: number | undefined;
 	readonly noNextEditReasonKind: string | undefined;
 	readonly noNextEditReasonMessage: string | undefined;
+
+	/* next cursor line info */
+	readonly nextCursorPrediction: {
+		nextCursorLineError: string | undefined;
+		/** nextCursorLineNumber - currentCursorLineNumber */
+		nextCursorLineDistance: number | undefined;
+	};
+
+	/* xtab aggressiveness telemetry (only set when promptingStrategy is XtabAggressiveness) */
+	readonly xtabAggressivenessLevel: string | undefined;
+	readonly xtabUserHappinessScore: number | undefined;
+
+	/* cursor jump info */
+	readonly cursorJumpPrompt: string | undefined;
+	readonly cursorJumpResponse: string | undefined;
 }
 
 export type FetchResultWithStats = {
@@ -353,6 +416,7 @@ export class StatelessNextEditTelemetryBuilder {
 
 			statelessNextEditProviderDuration: timeSpent,
 			logProbThreshold: this._logProbThreshold,
+			mergeConflictExpanded: this._mergeConflictExpanded,
 			nLinesOfCurrentFileInPrompt: this._nLinesOfCurrentFileInPrompt,
 			modelName: this._modelName,
 			prompt,
@@ -366,13 +430,24 @@ export class StatelessNextEditTelemetryBuilder {
 			response: this._response,
 			nEditsSuggested: this._nEditsSuggested,
 			nextEditLogprob: this._nextEditLogProb,
+			nextCursorPrediction: this._nextCursorPrediction,
 			lineDistanceToMostRecentEdit: this._lineDistanceToMostRecentEdit,
+			xtabAggressivenessLevel: this._xtabAggressivenessLevel,
+			xtabUserHappinessScore: this._xtabUserHappinessScore,
+			cursorJumpPrompt: this._cursorJumpPrompt ? JSON.stringify(this._cursorJumpPrompt.map(({ role, content }) => ({ role, content }))) : undefined,
+			cursorJumpResponse: this._cursorJumpResponse,
 		};
 	}
 
 	private _logProbThreshold: number | undefined;
 	public setLogProbThreshold(logProbThreshold: number): this {
 		this._logProbThreshold = logProbThreshold;
+		return this;
+	}
+
+	private _mergeConflictExpanded: 'normal' | 'only' | undefined;
+	public setMergeConflictExpanded(mergeConflictExpanded: 'normal' | 'only'): this {
+		this._mergeConflictExpanded = mergeConflictExpanded;
 		return this;
 	}
 
@@ -446,6 +521,19 @@ export class StatelessNextEditTelemetryBuilder {
 		return this;
 	}
 
+
+	private _cursorJumpPrompt: Raw.ChatMessage[] | undefined;
+	public setCursorJumpPrompt(prompt: Raw.ChatMessage[] | undefined): this {
+		this._cursorJumpPrompt = prompt;
+		return this;
+	}
+
+	private _cursorJumpResponse: string | undefined;
+	public setCursorJumpResponse(response: string | undefined): this {
+		this._cursorJumpResponse = response;
+		return this;
+	}
+
 	private _nextEditLogProb: number | undefined;
 	public setNextEditLogProb(logProb: number): this {
 		this._nextEditLogProb = logProb;
@@ -461,6 +549,36 @@ export class StatelessNextEditTelemetryBuilder {
 	private _lineDistanceToMostRecentEdit: number | undefined;
 	public setLineDistanceToMostRecentEdit(distanceToMostRecentEdit: number): this {
 		this._lineDistanceToMostRecentEdit = distanceToMostRecentEdit;
+		return this;
+	}
+
+	private _nextCursorPrediction: IStatelessNextEditTelemetry['nextCursorPrediction'] = {
+		nextCursorLineError: undefined,
+		nextCursorLineDistance: undefined
+	};
+
+	public setNextCursorLineError(error: string): this {
+		this._nextCursorPrediction.nextCursorLineError = error;
+		return this;
+	}
+
+	/**
+	 * nextCursorLineNumber - currentCursorLineNumber
+	 */
+	public setNextCursorLineDistance(distance: number): this {
+		this._nextCursorPrediction.nextCursorLineDistance = distance;
+		return this;
+	}
+
+	private _xtabAggressivenessLevel: string | undefined;
+	public setXtabAggressivenessLevel(level: string): this {
+		this._xtabAggressivenessLevel = level;
+		return this;
+	}
+
+	private _xtabUserHappinessScore: number | undefined;
+	public setXtabUserHappinessScore(score: number): this {
+		this._xtabUserHappinessScore = score;
 		return this;
 	}
 }

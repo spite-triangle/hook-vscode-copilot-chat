@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CopilotToken, RequestMetadata, RequestType } from '@vscode/copilot-api';
+import { RequestMetadata, RequestType } from '@vscode/copilot-api';
 import { Raw } from '@vscode/prompt-tsx';
-import type { CancellationToken } from 'vscode';
-import * as vscode from 'vscode';
+import { workspace, type CancellationToken } from 'vscode';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { ITokenizer, TokenizerType } from '../../../util/common/tokenizer';
 import { AsyncIterableObject } from '../../../util/vs/base/common/async';
@@ -18,8 +17,9 @@ import { CustomModel, EndpointEditToolName } from '../../endpoint/common/endpoin
 import { ILogService } from '../../log/common/logService';
 import { ITelemetryService, TelemetryProperties } from '../../telemetry/common/telemetry';
 import { TelemetryData } from '../../telemetry/common/telemetryData';
-import { FinishedCallback, OpenAiFunctionTool, OpenAiResponsesFunctionTool, OptionalChatRequestParams } from './fetch';
-import { FetcherId, FetchOptions, IAbortController, IFetcherService, Response } from './fetcherService';
+import { AnthropicMessagesTool, ContextManagement } from './anthropic';
+import { FinishedCallback, OpenAiFunctionTool, OpenAiResponsesFunctionTool, OptionalChatRequestParams, Prediction } from './fetch';
+import { FetcherId, FetchOptions, IAbortController, IFetcherService, PaginationOptions, Response } from './fetcherService';
 import { ChatCompletion, RawMessageConversionCallback, rawMessageToCAPI } from './openai';
 
 /**
@@ -36,6 +36,7 @@ export interface IFetcher {
 	isInternetDisconnectedError(e: any): boolean;
 	isFetcherError(err: any): boolean;
 	getUserMessageForFetcherError(err: any): string;
+	fetchWithPagination<T>(baseUrl: string, options: PaginationOptions<T>): Promise<T[]>;
 }
 
 export const userAgentLibraryHeader = 'X-VSCode-User-Agent-Library-Version';
@@ -59,7 +60,7 @@ const requestTimeoutMs = 30 * 1000; // 30 seconds
  */
 export interface IEndpointBody {
 	/** General or completions: */
-	tools?: (OpenAiFunctionTool | OpenAiResponsesFunctionTool)[];
+	tools?: (OpenAiFunctionTool | OpenAiResponsesFunctionTool | AnthropicMessagesTool)[];
 	model?: string;
 	previous_response_id?: string;
 	max_tokens?: number;
@@ -68,10 +69,11 @@ export interface IEndpointBody {
 	temperature?: number;
 	top_p?: number;
 	stream?: boolean;
+	prediction?: Prediction;
 	messages?: any[];
 	n?: number;
 	reasoning?: { effort?: string; summary?: string };
-	tool_choice?: OptionalChatRequestParams['tool_choice'] | { type: 'function'; name: string };
+	tool_choice?: OptionalChatRequestParams['tool_choice'] | { type: 'function'; name: string } | string;
 	top_logprobs?: number;
 	intent?: boolean;
 	intent_threshold?: number;
@@ -82,7 +84,6 @@ export interface IEndpointBody {
 	/** Embeddings endpoints only: */
 	dimensions?: number;
 	embed?: boolean;
-	encoding_format?: string;
 	/** Chunking endpoints: */
 	qos?: any;
 	content?: string;
@@ -102,11 +103,29 @@ export interface IEndpointBody {
 	truncation?: 'auto' | 'disabled';
 	include?: ['reasoning.encrypted_content'];
 	store?: boolean;
+	text?: {
+		verbosity?: 'low' | 'medium' | 'high';
+	};
+
+	/** Messages API */
+	thinking?: {
+		type: 'enabled' | 'disabled';
+		budget_tokens?: number;
+	};
+	context_management?: ContextManagement;
+
+	/** ChatCompletions API for Anthropic models */
+	thinking_budget?: number;
+}
+
+export interface IEndpointFetchOptions {
+	suppressIntegrationId?: boolean;
 }
 
 export interface IEndpoint {
 	readonly urlOrRequestMetadata: string | RequestMetadata;
-	getExtraHeaders?(): Record<string, string>;
+	getExtraHeaders?(location?: ChatLocation): Record<string, string>;
+	getEndpointFetchOptions?(): IEndpointFetchOptions;
 	interceptBody?(body: IEndpointBody | undefined): void;
 	acquireTokenizer(): ITokenizer;
 	readonly modelMaxPromptTokens: number;
@@ -143,14 +162,35 @@ export interface IMakeChatRequestOptions {
 	requestOptions?: Omit<OptionalChatRequestParams, 'n'>;
 	/** Indicates if the request was user-initiated */
 	userInitiatedRequest?: boolean;
+	/** Indicate whether this is a conversation request or a non-conversation utility request (like model list fetch or title generation) */
+	isConversationRequest?: boolean;
 	/** (CAPI-only) Optional telemetry properties for analytics */
-	telemetryProperties?: TelemetryProperties;
+	telemetryProperties?: IChatRequestTelemetryProperties;
 	/** Enable retrying the request when it was filtered due to snippy. Note- if using finishedCb, requires supporting delta.retryReason, eg with clearToPreviousToolInvocation */
 	enableRetryOnFilter?: boolean;
 	/** Enable retrying the request when it failed. Defaults to enableRetryOnFilter. Note- if using finishedCb, requires supporting delta.retryReason, eg with clearToPreviousToolInvocation */
 	enableRetryOnError?: boolean;
 	/** Which fetcher to use, overrides the default. */
 	useFetcher?: FetcherId;
+	/** Disable extended thinking for this request. Used when resuming from tool call errors where the original thinking blocks are not available. */
+	disableThinking?: boolean;
+	/** Enable retrying once on simple network errors like ECONNRESET. */
+	canRetryOnceWithoutRollback?: boolean;
+}
+
+export type IChatRequestTelemetryProperties = {
+	requestId?: string;
+	messageId?: string;
+	conversationId?: string;
+	messageSource?: string;
+	associatedRequestId?: string;
+	retryAfterError?: string;
+	retryAfterErrorGitHubRequestId?: string;
+	connectivityTestError?: string;
+	connectivityTestErrorGitHubRequestId?: string;
+	retryAfterFilterCategory?: string;
+	/** A subtype for categorizing the request with a messageSource- eg subagent */
+	subType?: string;
 }
 
 export interface ICreateEndpointBodyOptions extends IMakeChatRequestOptions {
@@ -178,6 +218,7 @@ export interface IChatEndpoint extends IEndpoint {
 	readonly customModel?: CustomModel;
 	readonly isExtensionContributed?: boolean;
 	readonly policy: 'enabled' | { terms: string };
+	readonly maxPromptImages?: number;
 	/**
 	 * Handles processing of responses from a chat endpoint. Each endpoint can have different response formats.
 	 * @param telemetryService The telemetry service
@@ -196,7 +237,8 @@ export interface IChatEndpoint extends IEndpoint {
 		expectedNumChoices: number,
 		finishCallback: FinishedCallback,
 		telemetryData: TelemetryData,
-		cancellationToken?: CancellationToken
+		cancellationToken?: CancellationToken,
+		location?: ChatLocation,
 	): Promise<AsyncIterableObject<ChatCompletion>>;
 
 	/**
@@ -258,6 +300,90 @@ export function createCapiRequestBody(options: ICreateEndpointBodyOptions, model
 	return request;
 }
 
+// function networkRequest(
+// 	fetcher: IFetcher,
+// 	telemetryService: ITelemetryService,
+// 	capiClientService: ICAPIClientService,
+// 	requestType: 'GET' | 'POST',
+// 	endpointOrUrl: IEndpoint | string | RequestMetadata,
+// 	secretKey: string,
+// 	intent: string,
+// 	requestId: string,
+// 	body?: IEndpointBody,
+// 	additionalHeaders?: Record<string, string>,
+// 	cancelToken?: CancellationToken,
+// 	useFetcher?: FetcherId,
+// 	canRetryOnce: boolean = true,
+// 	location?: ChatLocation,
+// ): Promise<Response> {
+// 	// TODO @lramos15 Eventually don't even construct this fake endpoint object.
+// 	const endpoint = typeof endpointOrUrl === 'string' || 'type' in endpointOrUrl ? {
+// 		modelMaxPromptTokens: 0,
+// 		urlOrRequestMetadata: endpointOrUrl,
+// 		family: '',
+// 		tokenizer: TokenizerType.O200K,
+// 		acquireTokenizer: () => {
+// 			throw new Error('Method not implemented.');
+// 		},
+// 		name: '',
+// 		version: '',
+// 	} satisfies IEndpoint : endpointOrUrl;
+// 	const headers: ReqHeaders = {
+// 		Authorization: `Bearer ${secretKey}`,
+// 		'X-Request-Id': requestId,
+// 		'X-Interaction-Type': intent,
+// 		'OpenAI-Intent': intent, // Tells CAPI who flighted this request. Helps find buggy features
+// 		'X-GitHub-Api-Version': '2025-05-01',
+// 		...additionalHeaders,
+// 		...(endpoint.getExtraHeaders ? endpoint.getExtraHeaders(location) : {}),
+// 	};
+
+// 	if (endpoint.interceptBody) {
+// 		endpoint.interceptBody(body);
+// 	}
+
+// 	const endpointFetchOptions = endpoint.getEndpointFetchOptions?.();
+// 	const request: FetchOptions = {
+// 		method: requestType,
+// 		headers: headers,
+// 		json: body,
+// 		timeout: requestTimeoutMs,
+// 		useFetcher,
+// 		suppressIntegrationId: endpointFetchOptions?.suppressIntegrationId
+// 	};
+
+// 	if (cancelToken) {
+// 		const abort = fetcher.makeAbortController();
+// 		cancelToken.onCancellationRequested(() => {
+// 			// abort the request when the token is canceled
+// 			telemetryService.sendGHTelemetryEvent('networking.cancelRequest', {
+// 				headerRequestId: requestId,
+// 			});
+// 			abort.abort();
+// 		});
+// 		// pass the controller abort signal to the request
+// 		request.signal = abort.signal;
+// 	}
+// 	if (typeof endpoint.urlOrRequestMetadata === 'string') {
+// 		const requestPromise = fetcher.fetch(endpoint.urlOrRequestMetadata, request).catch(reason => {
+// 			if (canRetryOnce && canRetryOnceNetworkError(reason)) {
+// 				// disconnect and retry the request once if the connection was reset
+// 				telemetryService.sendGHTelemetryEvent('networking.disconnectAll');
+// 				return fetcher.disconnectAll().then(() => {
+// 					return fetcher.fetch(endpoint.urlOrRequestMetadata as string, request);
+// 				});
+// 			} else if (fetcher.isAbortError(reason)) {
+// 				throw new CancellationError();
+// 			} else {
+// 				throw reason;
+// 			}
+// 		});
+// 		return requestPromise;
+// 	} else {
+// 		return capiClientService.makeRequest(request, endpoint.urlOrRequestMetadata as RequestMetadata);
+// 	}
+// }
+
 function networkRequest(
 	fetcher: IFetcher,
 	telemetryService: ITelemetryService,
@@ -271,6 +397,8 @@ function networkRequest(
 	additionalHeaders?: Record<string, string>,
 	cancelToken?: CancellationToken,
 	useFetcher?: FetcherId,
+	canRetryOnce: boolean = true,
+	location?: ChatLocation,
 ): Promise<Response> {
 	// TODO @lramos15 Eventually don't even construct this fake endpoint object.
 	const endpoint = typeof endpointOrUrl === 'string' || 'type' in endpointOrUrl ? {
@@ -285,50 +413,62 @@ function networkRequest(
 		version: '',
 	} satisfies IEndpoint : endpointOrUrl;
 
-	let config = vscode.workspace.getConfiguration('github.copilot.baseModel');
-	if (typeof endpoint.urlOrRequestMetadata !== 'string') {
-		let type = endpoint.urlOrRequestMetadata.type;
-		if (type == RequestType.CAPIEmbeddings) {
-			config = vscode.workspace.getConfiguration('github.copilot.embeddingModel');
+
+	let url: string | undefined = undefined;
+	if (typeof endpoint.urlOrRequestMetadata !== 'string'
+		&& endpoint.urlOrRequestMetadata.baseUrl !== undefined
+		&& endpoint.urlOrRequestMetadata.apiKey !== undefined) {
+		secretKey = endpoint.urlOrRequestMetadata.apiKey;
+		url = endpoint.urlOrRequestMetadata.baseUrl;
+		if (body) {
+			body.model = endpoint.urlOrRequestMetadata.model;
+		}
+
+		switch (endpoint.urlOrRequestMetadata.type) {
+			case RequestType.Models: url += "/models"; break;
+			case RequestType.CAPIEmbeddings: url += "/embeddings"; break;
+			case RequestType.ChatCompletions: url += "/chat/completions"; break;
+			case RequestType.ChatResponses: url += "/responses"; break;
+			case RequestType.ChatMessages: url += "/messages"; break;
+			default:
+				url = undefined;
+		}
+	} else if (typeof endpoint.urlOrRequestMetadata !== 'string'
+		&& (endpoint.urlOrRequestMetadata.type == RequestType.ProxyCompletions
+			|| endpoint.urlOrRequestMetadata.type == RequestType.ProxyChatCompletions
+		)
+	) {
+		const next_config = workspace.getConfiguration("github.copilot.hackModels.next");
+		url = next_config.get("baseUrl", "https://api.vectorengine.ai/v1") + "/chat/completions";
+		secretKey = next_config.get("apiKey", "xxx")
+		if (body) {
+			body.model = next_config.get("model", "gpt-4o");
 		}
 	}
 
-	let apikey = config.has('apikey') ? config.get('apikey') : secretKey;
-
 	const headers: ReqHeaders = {
-		Authorization: `Bearer ${apikey}`,
+		Authorization: `Bearer ${secretKey}`,
 		'X-Request-Id': requestId,
 		'X-Interaction-Type': intent,
 		'OpenAI-Intent': intent, // Tells CAPI who flighted this request. Helps find buggy features
 		'X-GitHub-Api-Version': '2025-05-01',
 		...additionalHeaders,
-		...(endpoint.getExtraHeaders ? endpoint.getExtraHeaders() : {}),
+		...(endpoint.getExtraHeaders ? endpoint.getExtraHeaders(location) : {}),
 	};
 
 	if (endpoint.interceptBody) {
 		endpoint.interceptBody(body);
 	}
 
-	if (body) {
-		body.model = config.get('model');
-		body.max_tokens = config.has('max_tokens') ? config.get('max_tokens') : body.max_tokens;
-		body.max_output_tokens = config.has('max_output_tokens') ? config.get('max_output_tokens') : body.max_output_tokens;
-		body.max_completion_tokens = config.has('max_completion_tokens') ? config.get('max_completion_tokens') : body.max_completion_tokens;
-		body.temperature = config.has('temperature') ? config.get('temperature') : body.temperature;
-		body.top_p = config.has('top_p') ? config.get('top_p') : body.top_p;
-		body.stream = config.has('stream') ? config.get('strean') : body.stream;
-		body.n = config.has('n') ? config.get('n') : body.n;
-		body.n = config.has('n_max') && body.n ? Math.min(config.get('n_max') as number, body.n) : body.n;
-		body.dimensions = config.has('dimensions') ? config.get('dimensions') : body.dimensions;
-		body.encoding_format = config.has('encoding_format') ? config.get('encoding_format') : body.encoding_format;
-	}
 
+	const endpointFetchOptions = endpoint.getEndpointFetchOptions?.();
 	const request: FetchOptions = {
 		method: requestType,
 		headers: headers,
 		json: body,
 		timeout: requestTimeoutMs,
 		useFetcher,
+		suppressIntegrationId: endpointFetchOptions?.suppressIntegrationId
 	};
 
 	if (cancelToken) {
@@ -345,9 +485,8 @@ function networkRequest(
 	}
 	if (typeof endpoint.urlOrRequestMetadata === 'string') {
 		const requestPromise = fetcher.fetch(endpoint.urlOrRequestMetadata, request).catch(reason => {
-			if (canRetryOnceNetworkError(reason)) {
+			if (canRetryOnce && canRetryOnceNetworkError(reason)) {
 				// disconnect and retry the request once if the connection was reset
-				telemetryService.sendGHTelemetryEvent('networking.disconnectAll');
 				return fetcher.disconnectAll().then(() => {
 					return fetcher.fetch(endpoint.urlOrRequestMetadata as string, request);
 				});
@@ -358,19 +497,26 @@ function networkRequest(
 			}
 		});
 		return requestPromise;
+	} else if (url) {
+
+		const requestPromise = fetcher.fetch(url, request)
+			.then(resp => {
+				return resp;
+			})
+			.catch(reason => {
+				if (canRetryOnce && canRetryOnceNetworkError(reason)) {
+					// disconnect and retry the request once if the connection was reset
+					return fetcher.disconnectAll().then(() => {
+						return fetcher.fetch(url, request);
+					});
+				} else if (fetcher.isAbortError(reason)) {
+					throw new CancellationError();
+				} else {
+					throw reason;
+				}
+			});
+		return requestPromise;
 	} else {
-
-		let url: string = config.has('url') ? config.get('url') as string : "https://api.githubcopilot.com";
-
-		let token: CopilotToken = {
-			endpoints: {
-				api: url,
-				proxy: url
-			},
-			sku: 'yearly_subscriber'
-		};
-		capiClientService.updateDomains(token, url);
-
 		return capiClientService.makeRequest(request, endpoint.urlOrRequestMetadata as RequestMetadata);
 	}
 }
@@ -400,6 +546,8 @@ export function postRequest(
 	additionalHeaders?: Record<string, string>,
 	cancelToken?: CancellationToken,
 	useFetcher?: FetcherId,
+	canRetryOnce: boolean = true,
+	location?: ChatLocation,
 ): Promise<Response> {
 	return networkRequest(fetcherService,
 		telemetryService,
@@ -413,6 +561,8 @@ export function postRequest(
 		additionalHeaders,
 		cancelToken,
 		useFetcher,
+		canRetryOnce,
+		location,
 	);
 }
 

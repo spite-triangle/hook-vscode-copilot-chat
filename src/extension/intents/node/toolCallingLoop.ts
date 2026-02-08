@@ -9,12 +9,17 @@ import type { CancellationToken, ChatRequest, ChatResponseProgressPart, ChatResp
 import { IAuthenticationChatUpgradeService } from '../../../platform/authentication/common/authenticationUpgrade';
 import { FetchStreamSource, IResponsePart } from '../../../platform/chat/common/chatMLFetcher';
 import { CanceledResult, ChatFetchResponseType, ChatResponse } from '../../../platform/chat/common/commonTypes';
+import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
+import { isAnthropicFamily } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
+import { rawPartAsThinkingData } from '../../../platform/endpoint/common/thinkingDataContainer';
 import { ILogService } from '../../../platform/log/common/logService';
 import { OpenAiFunctionDef } from '../../../platform/networking/common/fetch';
 import { IMakeChatRequestOptions } from '../../../platform/networking/common/networking';
 import { IRequestLogger } from '../../../platform/requestLogger/node/requestLogger';
+import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
+import { computePromptTokenDetails } from '../../../platform/tokenizer/node/promptTokenDetails';
 import { tryFinalizeResponseStream } from '../../../util/common/chatResponseStreamImpl';
 import { CancellationError, isCancellationError } from '../../../util/vs/base/common/errors';
 import { Emitter } from '../../../util/vs/base/common/event';
@@ -23,11 +28,12 @@ import { Mutable } from '../../../util/vs/base/common/types';
 import { URI } from '../../../util/vs/base/common/uri';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { ChatResponsePullRequestPart, LanguageModelDataPart2, LanguageModelPartAudience, LanguageModelToolResult2, MarkdownString } from '../../../vscodeTypes';
+import { ChatResponsePullRequestPart, LanguageModelDataPart2, LanguageModelPartAudience, LanguageModelTextPart, LanguageModelToolResult2, MarkdownString } from '../../../vscodeTypes';
 import { InteractionOutcomeComputer } from '../../inlineChat/node/promptCraftingTypes';
 import { ChatVariablesCollection } from '../../prompt/common/chatVariablesCollection';
-import { Conversation, IResultMetadata, ResponseStreamParticipant, TurnStatus } from '../../prompt/common/conversation';
+import { AnthropicTokenUsageMetadata, Conversation, IResultMetadata, ResponseStreamParticipant, TurnStatus } from '../../prompt/common/conversation';
 import { IBuildPromptContext, InternalToolReference, IToolCall, IToolCallRound } from '../../prompt/common/intents';
+import { cancelText, IToolCallIterationIncrease } from '../../prompt/common/specialRequestTypes';
 import { ThinkingDataItem, ToolCallRound } from '../../prompt/common/toolCallRound';
 import { IBuildPromptResult, IResponseProcessor } from '../../prompt/node/intents';
 import { PseudoStopStartResponseProcessor } from '../../prompt/node/pseudoStartStopConversationCallback';
@@ -81,7 +87,7 @@ export interface IToolCallingBuiltPromptEvent {
 	tools: LanguageModelToolInformation[];
 }
 
-export type ToolCallingLoopFetchOptions = Required<Pick<IMakeChatRequestOptions, 'messages' | 'finishedCb' | 'requestOptions' | 'userInitiatedRequest'>>;
+export type ToolCallingLoopFetchOptions = Required<Pick<IMakeChatRequestOptions, 'messages' | 'finishedCb' | 'requestOptions' | 'userInitiatedRequest'>> & Pick<IMakeChatRequestOptions, 'disableThinking'>;
 
 /**
  * This is a base class that can be used to implement a tool calling loop
@@ -95,7 +101,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 	private toolCallResults: Record<string, LanguageModelToolResult2> = Object.create(null);
 	private toolCallRounds: IToolCallRound[] = [];
 
-	private readonly _onDidBuildPrompt = this._register(new Emitter<{ result: IBuildPromptResult; tools: LanguageModelToolInformation[]; promptTokenLength: number }>());
+	private readonly _onDidBuildPrompt = this._register(new Emitter<{ result: IBuildPromptResult; tools: LanguageModelToolInformation[]; promptTokenLength: number; toolTokenCount: number }>());
 	public readonly onDidBuildPrompt = this._onDidBuildPrompt.event;
 
 	private readonly _onDidReceiveResponse = this._register(new Emitter<IToolCallingResponseEvent>());
@@ -113,6 +119,8 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		@IRequestLogger private readonly _requestLogger: IRequestLogger,
 		@IAuthenticationChatUpgradeService private readonly _authenticationChatUpgradeService: IAuthenticationChatUpgradeService,
 		@ITelemetryService protected readonly _telemetryService: ITelemetryService,
+		@IConfigurationService protected readonly _configurationService: IConfigurationService,
+		@IExperimentationService protected readonly _experimentationService: IExperimentationService,
 	) {
 		super();
 	}
@@ -128,7 +136,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		const { request } = this.options;
 		const chatVariables = new ChatVariablesCollection(request.references);
 
-		const isContinuation = isToolCallLimitAcceptance(this.options.request) || isContinueOnError(this.options.request);
+		const isContinuation = this.turn.isContinuation;
 		const query = isContinuation ?
 			'Please continue' :
 			this.turn.request.message;
@@ -353,9 +361,12 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		if (conversationSummary) {
 			this.turn.setMetadata(conversationSummary);
 		}
-		const promptTokenLength = await (await this._endpointProvider.getChatEndpoint(this.options.request)).acquireTokenizer().countMessagesTokens(buildPromptResult.messages);
+		const endpoint = await this._endpointProvider.getChatEndpoint(this.options.request);
+		const tokenizer = endpoint.acquireTokenizer();
+		const promptTokenLength = await tokenizer.countMessagesTokens(buildPromptResult.messages);
+		const toolTokenCount = availableTools.length > 0 ? await tokenizer.countToolTokens(availableTools) : 0;
 		await this.throwIfCancelled(token);
-		this._onDidBuildPrompt.fire({ result: buildPromptResult, tools: availableTools, promptTokenLength });
+		this._onDidBuildPrompt.fire({ result: buildPromptResult, tools: availableTools, promptTokenLength, toolTokenCount });
 		this._logService.trace('Built prompt');
 
 		// todo@connor4312: can interaction outcome logic be implemented in a more generic way?
@@ -371,7 +382,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 				if (that.options.responseProcessor) {
 					chatResult = await that.options.responseProcessor.processResponse(this.context, inputStream, responseStream, token);
 				} else {
-					const responseProcessor = that._instantiationService.createInstance(PseudoStopStartResponseProcessor, [], undefined);
+					const responseProcessor = that._instantiationService.createInstance(PseudoStopStartResponseProcessor, [], undefined, { subagentInvocationId: that.options.request.subAgentInvocationId });
 					await responseProcessor.processResponse(this.context, inputStream, responseStream, token);
 				}
 				return chatResult;
@@ -432,6 +443,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		let statefulMarker: string | undefined;
 		const toolCalls: IToolCall[] = [];
 		let thinkingItem: ThinkingDataItem | undefined;
+		const disableThinking = isContinuation && isAnthropicFamily(endpoint) && !ToolCallingLoop.messagesContainThinking(buildPromptResult.messages);
 		const fetchResult = await this.fetch({
 			messages: this.applyMessagePostProcessing(buildPromptResult.messages),
 			finishedCb: async (text, index, delta) => {
@@ -443,13 +455,20 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 						arguments: call.arguments === '' ? '{}' : call.arguments
 					})));
 				}
+				if (delta.serverToolCalls) {
+					for (const serverCall of delta.serverToolCalls) {
+						const result: LanguageModelToolResult2 = {
+							content: [new LanguageModelTextPart(JSON.stringify(serverCall.result, undefined, 2))]
+						};
+						this._requestLogger.logServerToolCall(serverCall.id, serverCall.name, serverCall.args, result);
+					}
+				}
 				if (delta.statefulMarker) {
 					statefulMarker = delta.statefulMarker;
 				}
 				if (delta.thinking) {
 					thinkingItem = ThinkingDataItem.createOrUpdate(thinkingItem, delta.thinking);
 				}
-
 				return stopEarly ? text.length : undefined;
 			},
 			requestOptions: {
@@ -462,11 +481,28 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 					type: 'function',
 				})),
 			},
-			userInitiatedRequest: iterationNumber === 0 && !isContinuation
+			userInitiatedRequest: iterationNumber === 0 && !isContinuation && !this.options.request.subAgentInvocationId,
+			disableThinking,
 		}, token);
 
+		const promptTokenDetails = await computePromptTokenDetails({
+			messages: buildPromptResult.messages,
+			tokenizer,
+			tools: availableTools,
+		});
 		fetchStreamSource?.resolve();
-		const chatResult = await processResponsePromise ?? undefined;
+		let chatResult = await processResponsePromise ?? undefined;
+
+		// hydrate the token usage into the chat result as this renders the context window widget
+		if (fetchResult.type === ChatFetchResponseType.Success && fetchResult.usage) {
+			chatResult = {
+				...chatResult, usage: {
+					completionTokens: fetchResult.usage.completion_tokens,
+					promptTokens: fetchResult.usage.prompt_tokens,
+					promptTokenDetails,
+				}
+			};
+		}
 
 		// Validate authentication session upgrade and handle accordingly
 		if (
@@ -482,8 +518,17 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		this._onDidReceiveResponse.fire({ interactionOutcome: interactionOutcomeComputer, response: fetchResult, toolCalls });
 
 		this.turn.setMetadata(interactionOutcomeComputer.interactionOutcome);
+
 		const toolInputRetry = isToolInputFailure ? (this.toolCallRounds.at(-1)?.toolInputRetry || 0) + 1 : 0;
 		if (fetchResult.type === ChatFetchResponseType.Success) {
+			// Store token usage metadata for Anthropic models using Messages API
+			if (fetchResult.usage && isAnthropicFamily(endpoint)) {
+				this.turn.setMetadata(new AnthropicTokenUsageMetadata(
+					fetchResult.usage.prompt_tokens,
+					fetchResult.usage.completion_tokens
+				));
+			}
+
 			thinkingItem?.updateWithFetchResult(fetchResult);
 			return {
 				response: fetchResult,
@@ -543,6 +588,32 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 
 			return m;
 		});
+	}
+
+	public static messagesContainThinking(messages: Raw.ChatMessage[]): boolean {
+		let lastUserMessageIndex = -1;
+		for (let i = messages.length - 1; i >= 0; i--) {
+			if (messages[i].role === Raw.ChatRole.User) {
+				lastUserMessageIndex = i;
+				break;
+			}
+		}
+
+		// If no user message found, return false to disable thinking
+		if (lastUserMessageIndex === -1) {
+			return false;
+		}
+
+		for (let i = lastUserMessageIndex + 1; i < messages.length; i++) {
+			const m = messages[i];
+			if (m.role !== Raw.ChatRole.Assistant) {
+				continue;
+			}
+			return Array.isArray(m.content) && m.content.some(part =>
+				part.type === Raw.ChatCompletionContentPartKind.Opaque && rawPartAsThinkingData(part) !== undefined
+			);
+		}
+		return false;
 	}
 
 	/**
@@ -681,22 +752,3 @@ export interface IToolCallLoopResult extends IToolCallSingleResult {
 	toolCallRounds: IToolCallRound[];
 	toolCallResults: Record<string, LanguageModelToolResult2>;
 }
-
-interface IToolCallIterationIncrease {
-	copilotRequestedRoundLimit: number;
-}
-
-const isToolCallIterationIncrease = (c: any): c is IToolCallIterationIncrease => c && typeof c.copilotRequestedRoundLimit === 'number';
-
-export const getRequestedToolCallIterationLimit = (request: ChatRequest) => request.acceptedConfirmationData?.find(isToolCallIterationIncrease)?.copilotRequestedRoundLimit;
-// todo@connor4312 improve with the choices API
-export const isToolCallLimitCancellation = (request: ChatRequest) => !!getRequestedToolCallIterationLimit(request) && request.prompt.includes(cancelText());
-export const isToolCallLimitAcceptance = (request: ChatRequest) => !!getRequestedToolCallIterationLimit(request) && !isToolCallLimitCancellation(request);
-export interface IContinueOnErrorConfirmation {
-	copilotContinueOnError: true;
-}
-function isContinueOnErrorConfirmation(c: unknown): c is IContinueOnErrorConfirmation {
-	return !!(c && (c as IContinueOnErrorConfirmation).copilotContinueOnError === true);
-}
-export const isContinueOnError = (request: ChatRequest) => !!(request.acceptedConfirmationData?.some(isContinueOnErrorConfirmation));
-const cancelText = () => l10n.t('Pause');

@@ -1,0 +1,316 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+import type { ChatRequest } from 'vscode';
+import { createServiceIdentifier } from '../../../util/common/services';
+import { TimeoutTimer } from '../../../util/vs/base/common/async';
+import { Disposable, DisposableMap } from '../../../util/vs/base/common/lifecycle';
+import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
+import { ChatLocation } from '../../../vscodeTypes';
+import { IAuthenticationService } from '../../authentication/common/authentication';
+import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
+import { ILogService } from '../../log/common/logService';
+import { IFetcherService } from '../../networking/common/fetcherService';
+import { IChatEndpoint } from '../../networking/common/networking';
+import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
+import { ICAPIClientService } from '../common/capiClient';
+import { AutoChatEndpoint } from './autoChatEndpoint';
+import { RouterDecisionFetcher } from './routerDecisionFetcher';
+
+interface AutoModeAPIResponse {
+	available_models: string[];
+	selected_model: string;
+	expires_at: number;
+	discounted_costs?: { [key: string]: number };
+	session_token: string;
+}
+
+class AutoModeTokenBank extends Disposable {
+	private _token: AutoModeAPIResponse | undefined;
+	private _fetchTokenPromise: Promise<void> | undefined;
+	private _refreshTimer: TimeoutTimer;
+
+	constructor(
+		public debugName: string,
+		private readonly _location: ChatLocation,
+		private readonly _capiClientService: ICAPIClientService,
+		private readonly _authService: IAuthenticationService,
+		private readonly _logService: ILogService,
+		private readonly _expService: IExperimentationService
+	) {
+		super();
+		this._refreshTimer = this._register(new TimeoutTimer());
+		this._fetchTokenPromise = this._fetchToken();
+	}
+
+	async getToken(): Promise<AutoModeAPIResponse> {
+		if (!this._token) {
+			if (this._fetchTokenPromise) {
+				await this._fetchTokenPromise;
+			} else {
+				this._fetchTokenPromise = this._fetchToken();
+				await this._fetchTokenPromise;
+			}
+		}
+		if (!this._token) {
+			throw new Error(`[${this.debugName}] Failed to fetch AutoMode token: token is undefined after fetch attempt.`);
+		}
+		return this._token;
+	}
+
+	// private async _fetchToken(): Promise<void> {
+	// 	const startTime = Date.now();
+
+	// 	const authToken = (await this._authService.getCopilotToken()).token;
+	// 	const headers: Record<string, string> = {
+	// 		'Content-Type': 'application/json',
+	// 		'Authorization': `Bearer ${authToken}`
+	// 	};
+	// 	if (this._token) {
+	// 		headers['Copilot-Session-Token'] = this._token.session_token;
+	// 	}
+
+	// 	const expName = this._location === ChatLocation.Editor
+	// 		? 'copilotchat.autoModelHint.editor'
+	// 		: 'copilotchat.autoModelHint';
+
+	// 	const autoModeHint = this._expService.getTreatmentVariable<string>(expName) || 'auto';
+
+	// 	const response = await this._capiClientService.makeRequest<Response>({
+	// 		json: {
+	// 			'auto_mode': { 'model_hints': [autoModeHint] }
+	// 		},
+	// 		headers,
+	// 		method: 'POST'
+	// 	}, { type: RequestType.AutoModels });
+	// 	const data: AutoModeAPIResponse = await response.json() as AutoModeAPIResponse;
+	// 	this._logService.trace(`Fetched auto model for ${this.debugName} in ${Date.now() - startTime}ms.`);
+	// 	this._token = data;
+	// 	// Trigger a refresh 5 minutes before expiration
+	// 	if (!this._store.isDisposed) {
+	// 		this._refreshTimer.cancelAndSet(this._fetchToken.bind(this), (data.expires_at * 1000) - Date.now() - 5 * 60 * 1000);
+	// 	}
+	// 	this._fetchTokenPromise = undefined;
+	// }
+
+	private async _fetchToken(): Promise<void> {
+
+		const data: AutoModeAPIResponse = {
+			available_models: ["gpt-5-mini", "gpt-4.1", "gpt-4o"],
+			selected_model: "gpt-5-mini",
+			session_token: "eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdmFpbGFibGVfbW9kZWxzIjpbImdwdC01LW1pbmkiLCJncHQtNC4xIiwiZ3B0LTRvIl0sInNlbGVjdGVkX21vZGVsIjoiZ3B0LTUtbWluaSIsInN1YiI6IjllNTdmMGJmMjY5YzNjZWQ2NTZkZTgzMjQzMGZlNDc3IiwiaWF0IjoxNzcwNDI5MjQ2LCJleHAiOjE3NzA0MzI4NDZ9.V1sHTOUW0xGgARlOC1gT-QxqOx2Pl2qGMAfC8BhoFYC_OamHreu0xsW2LcO29TRRSLdxWhG9r502uzIzGjhQfg",
+			expires_at: 2770432846
+		};
+
+		data.expires_at = Math.floor(Date.now() / 1000) + 600;
+
+		this._token = data;
+		// Trigger a refresh 5 minutes before expiration
+		if (!this._store.isDisposed) {
+			this._refreshTimer.cancelAndSet(this._fetchToken.bind(this), (data.expires_at * 1000) - Date.now() - 5 * 60 * 1000);
+		}
+		this._fetchTokenPromise = undefined;
+	}
+}
+
+export const IAutomodeService = createServiceIdentifier<IAutomodeService>('IAutomodeService');
+
+export interface IAutomodeService {
+	readonly _serviceBrand: undefined;
+
+	resolveAutoModeEndpoint(chatRequest: ChatRequest | undefined, knownEndpoints: IChatEndpoint[]): Promise<IChatEndpoint>;
+}
+
+export class AutomodeService extends Disposable implements IAutomodeService {
+	readonly _serviceBrand: undefined;
+	private readonly _autoModelCache: Map<string, { endpoints: AutoChatEndpoint[]; tokenBank: AutoModeTokenBank; lastRoutedPrompt?: string }> = new Map();
+	private _reserveTokens: DisposableMap<ChatLocation, AutoModeTokenBank> = new DisposableMap();
+	private readonly _routerDecisionFetcher: RouterDecisionFetcher;
+
+	constructor(
+		@ICAPIClientService private readonly _capiClientService: ICAPIClientService,
+		@IAuthenticationService private readonly _authService: IAuthenticationService,
+		@ILogService private readonly _logService: ILogService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IExperimentationService private readonly _expService: IExperimentationService,
+		@IFetcherService private readonly _fetcherService: IFetcherService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
+	) {
+		super();
+		this._register(this._authService.onDidAuthenticationChange(() => {
+			for (const entry of this._autoModelCache.values()) {
+				entry.tokenBank.dispose();
+			}
+			this._autoModelCache.clear();
+			const keys = Array.from(this._reserveTokens.keys());
+			this._reserveTokens.clearAndDisposeAll();
+			for (const location of keys) {
+				this._reserveTokens.set(location, new AutoModeTokenBank('reserve', location, this._capiClientService, this._authService, this._logService, this._expService));
+			}
+		}));
+		this._serviceBrand = undefined;
+		this._routerDecisionFetcher = this._register(new RouterDecisionFetcher(this._fetcherService, this._logService, this._configurationService, this._expService));
+	}
+
+	override dispose(): void {
+		for (const entry of this._autoModelCache.values()) {
+			entry.tokenBank.dispose();
+		}
+		this._autoModelCache.clear();
+		this._reserveTokens.dispose();
+		super.dispose();
+	}
+
+	/**
+	 * Resolve an auto mode endpoint using a double-buffer strategy and a global reserve token.
+	 */
+	async resolveAutoModeEndpoint(chatRequest: ChatRequest | undefined, knownEndpoints: IChatEndpoint[]): Promise<IChatEndpoint> {
+		if (!knownEndpoints.length) {
+			throw new Error('No auto mode endpoints provided.');
+		}
+
+		// Only use router model for panel chat to avoid latency penalty in inline chat
+		const isPanelChat = !chatRequest?.location || chatRequest?.location === ChatLocation.Panel;
+		const usingRouterModel = isPanelChat && this._configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.AutoModeRouterUrl, this._expService) !== undefined;
+		if (usingRouterModel) {
+			return this._resolveWithRouterModel(chatRequest, knownEndpoints);
+		}
+		return this._resolveWithoutRouterModel(chatRequest, knownEndpoints);
+	}
+
+	/**
+	 * Router model path: Uses the router decision fetcher to select the best model based on the prompt.
+	 * This is an experimental feature that can be removed once the experiment is complete.
+	 */
+	private async _resolveWithRouterModel(chatRequest: ChatRequest | undefined, knownEndpoints: IChatEndpoint[]): Promise<IChatEndpoint> {
+		const conversationId = getConversationId(chatRequest);
+		const entry = this._autoModelCache.get(conversationId);
+		const location = chatRequest?.location ?? ChatLocation.Panel;
+		const reserveTokenBank = this._reserveTokens.get(location) || new AutoModeTokenBank('reserve', location, this._capiClientService, this._authService, this._logService, this._expService);
+		this._reserveTokens.set(location, new AutoModeTokenBank('reserve', location, this._capiClientService, this._authService, this._logService, this._expService));
+
+		// Update the debug name so logs are properly associating this token with the right conversation id now
+		reserveTokenBank.debugName = conversationId;
+
+		const reserveToken = await reserveTokenBank.getToken();
+
+		let selectedModel: IChatEndpoint | undefined = undefined;
+		const availableModels = reserveToken.available_models;
+		const cachedModels = entry?.endpoints.map(e => e.model) || [];
+		// preferredModels is an ordered list used to express routing preference:
+		//  - the reserved model is always first
+		//  - followed by any cached models in their original order, without duplicates
+		const preferredModels = [reserveToken.selected_model];
+		for (const cachedModel of cachedModels) {
+			if (!preferredModels.includes(cachedModel)) {
+				preferredModels.push(cachedModel);
+			}
+		}
+
+		// Only call the router if the prompt has changed since the last routing decision.
+		// This ensures routing happens once per turn (user message), not on every iteration
+		// during tool calling where the prompt remains the same.
+		const prompt = chatRequest?.prompt?.trim();
+		const shouldRoute = prompt?.length && (!entry || entry.lastRoutedPrompt !== prompt);
+		if (shouldRoute) {
+			try {
+				const routedModel = await this._routerDecisionFetcher.getRoutedModel(prompt, availableModels, preferredModels);
+				selectedModel = knownEndpoints.find(e => e.model === routedModel);
+			} catch (e) {
+				this._logService.error(`Failed to get routed model for conversation ${conversationId}: `, (e as Error).message);
+			}
+		}
+		if (!selectedModel) {
+			selectedModel = knownEndpoints.find(e => e.model === reserveToken.selected_model);
+			if (!selectedModel) {
+				const errorMsg = `Auto mode failed: selected model '${reserveToken.selected_model}' not found in known endpoints.`;
+				this._logService.error(errorMsg);
+				throw new Error(errorMsg);
+			}
+		}
+		const existingEndpoints = entry?.endpoints || [];
+		let autoEndpoint = existingEndpoints.find(e => e.model === selectedModel.model);
+		if (!autoEndpoint) {
+			autoEndpoint = this._instantiationService.createInstance(AutoChatEndpoint, selectedModel, reserveToken.session_token, reserveToken.discounted_costs?.[selectedModel.model] || 0, this._calculateDiscountRange(reserveToken.discounted_costs));
+			existingEndpoints.push(autoEndpoint);
+		}
+		this._autoModelCache.set(conversationId, { endpoints: existingEndpoints, tokenBank: reserveTokenBank, lastRoutedPrompt: prompt });
+		return autoEndpoint;
+	}
+
+	/**
+	 * Non-router model path: Uses the cached endpoint if available, or falls back to the reserved token's selected model.
+	 */
+	private async _resolveWithoutRouterModel(chatRequest: ChatRequest | undefined, knownEndpoints: IChatEndpoint[]): Promise<IChatEndpoint> {
+		const conversationId = getConversationId(chatRequest);
+		const entry = this._autoModelCache.get(conversationId);
+
+		// If we have a cached entry, use it (refreshing if the model changed)
+		if (entry) {
+			const entryToken = await entry.tokenBank.getToken();
+			if (entry.endpoints.length && entry.endpoints[0].model !== entryToken.selected_model) {
+				// Model changed during a token refresh -> map to new endpoint
+				const newModel = knownEndpoints.find(e => e.model === entryToken.selected_model);
+				if (!newModel) {
+					const errorMsg = `Auto mode failed: selected model '${entryToken.selected_model}' not found in known endpoints.`;
+					this._logService.error(errorMsg);
+					throw new Error(errorMsg);
+				}
+				entry.endpoints = [this._instantiationService.createInstance(AutoChatEndpoint, newModel, entryToken.session_token, entryToken.discounted_costs?.[newModel.model] || 0, this._calculateDiscountRange(entryToken.discounted_costs))];
+			}
+			return entry.endpoints[0];
+		}
+
+		// No cached entry, use the reserve token
+		const location = chatRequest?.location ?? ChatLocation.Panel;
+		const reserveTokenBank = this._reserveTokens.get(location) || new AutoModeTokenBank('reserve', location, this._capiClientService, this._authService, this._logService, this._expService);
+		this._reserveTokens.set(location, new AutoModeTokenBank('reserve', location, this._capiClientService, this._authService, this._logService, this._expService));
+		reserveTokenBank.debugName = conversationId;
+
+		const reserveToken = await reserveTokenBank.getToken();
+		const selectedModel = knownEndpoints.find(e => e.model === reserveToken.selected_model);
+		if (!selectedModel) {
+			const errorMsg = `Auto mode failed: selected model '${reserveToken.selected_model}' not found in known endpoints.`;
+			this._logService.error(errorMsg);
+			throw new Error(errorMsg);
+		}
+		const autoEndpoint = this._instantiationService.createInstance(AutoChatEndpoint, selectedModel, reserveToken.session_token, reserveToken.discounted_costs?.[selectedModel.model] || 0, this._calculateDiscountRange(reserveToken.discounted_costs));
+
+		this._autoModelCache.set(conversationId, { endpoints: [autoEndpoint], tokenBank: reserveTokenBank });
+		return autoEndpoint;
+	}
+
+	private _calculateDiscountRange(discounts: Record<string, number> | undefined): { low: number; high: number } {
+		if (!discounts) {
+			return { low: 0, high: 0 };
+		}
+		let low = Infinity;
+		let high = -Infinity;
+		let hasValues = false;
+
+		for (const value of Object.values(discounts)) {
+			hasValues = true;
+			if (value < low) {
+				low = value;
+			}
+			if (value > high) {
+				high = value;
+			}
+		}
+		return hasValues ? { low, high } : { low: 0, high: 0 };
+	}
+}
+
+/**
+ * Get the conversation ID from the chat request. This is representative of a single chat thread
+ * @param chatRequest The chat request object.
+ * @returns The conversation ID or 'unknown' if not available.
+ */
+function getConversationId(chatRequest: ChatRequest | undefined): string {
+	if (!chatRequest) {
+		return 'unknown';
+	}
+	return (chatRequest?.toolInvocationToken as { sessionId: string })?.sessionId || 'unknown';
+}

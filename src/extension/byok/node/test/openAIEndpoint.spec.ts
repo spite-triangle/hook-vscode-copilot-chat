@@ -87,7 +87,10 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 	describe('CAPI mode (useResponsesApi = false)', () => {
 		it('should set cot_id and cot_summary properties when processing thinking content', () => {
 			const endpoint = instaService.createInstance(OpenAIEndpoint,
-				modelMetadata,
+				{
+					...modelMetadata,
+					supported_endpoints: [ModelSupportedEndpoint.ChatCompletions]
+				},
 				'test-api-key',
 				'https://api.openai.com/v1/chat/completions');
 
@@ -105,7 +108,10 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 
 		it('should handle multiple messages with thinking content', () => {
 			const endpoint = instaService.createInstance(OpenAIEndpoint,
-				modelMetadata,
+				{
+					...modelMetadata,
+					supported_endpoints: [ModelSupportedEndpoint.ChatCompletions]
+				},
 				'test-api-key',
 				'https://api.openai.com/v1/chat/completions');
 
@@ -134,7 +140,6 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 
 	describe('Responses API mode (useResponsesApi = true)', () => {
 		it('should preserve reasoning object when thinking is supported', () => {
-			accessor.get(IConfigurationService).setConfig(ConfigKey.UseResponsesApi, true);
 			accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiReasoningEffort, 'medium');
 			accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiReasoningSummary, 'detailed');
 			const endpoint = instaService.createInstance(OpenAIEndpoint,
@@ -165,7 +170,6 @@ describe('OpenAIEndpoint - Reasoning Properties', () => {
 				}
 			};
 
-			accessor.get(IConfigurationService).setConfig(ConfigKey.UseResponsesApi, true);
 			accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiReasoningEffort, 'medium');
 			accessor.get(IConfigurationService).setConfig(ConfigKey.ResponsesApiReasoningSummary, 'detailed');
 			const endpoint = instaService.createInstance(OpenAIEndpoint,

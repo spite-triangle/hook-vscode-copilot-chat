@@ -9,8 +9,8 @@ import { IIgnoreService } from '../../src/platform/ignore/common/ignoreService';
 import { ILogService } from '../../src/platform/log/common/logService';
 import { GithubCodeSearchRepoInfo, IGithubCodeSearchService, parseGithubCodeSearchResponse } from '../../src/platform/remoteCodeSearch/common/githubCodeSearchService';
 import { CodeSearchResult, RemoteCodeSearchError, RemoteCodeSearchIndexState, RemoteCodeSearchIndexStatus } from '../../src/platform/remoteCodeSearch/common/remoteCodeSearch';
-import { BuildIndexTriggerReason, TriggerIndexingError } from '../../src/platform/remoteCodeSearch/node/codeSearchRepoTracker';
 import { StrategySearchSizing, WorkspaceChunkQuery, WorkspaceChunkSearchOptions } from '../../src/platform/workspaceChunkSearch/common/workspaceChunkSearch';
+import { BuildIndexTriggerReason, TriggerIndexingError } from '../../src/platform/workspaceChunkSearch/node/codeSearch/codeSearchRepo';
 import { FullWorkspaceChunkSearch } from '../../src/platform/workspaceChunkSearch/node/fullWorkspaceChunkSearch';
 import { IWorkspaceChunkSearchService, WorkspaceChunkSearchResult, WorkspaceChunkSearchSizing, WorkspaceIndexState } from '../../src/platform/workspaceChunkSearch/node/workspaceChunkSearchService';
 import { Result } from '../../src/util/common/result';
@@ -136,7 +136,11 @@ export class SimulationCodeSearchChunkSearchService extends Disposable implement
 		throw new Error('Method not implemented.');
 	}
 
-	triggerRemoteIndexing(trigger: BuildIndexTriggerReason): Promise<Result<true, TriggerIndexingError>> {
+	triggerRemoteIndexing(trigger: BuildIndexTriggerReason, _onProgress?: (message: string) => void, _telemetryInfo?: TelemetryCorrelationId, _token?: CancellationToken): Promise<Result<true, TriggerIndexingError>> {
 		throw new Error('Method not implemented.');
+	}
+
+	deleteExternalIngestWorkspaceIndex(): Promise<void> {
+		return Promise.resolve();
 	}
 }

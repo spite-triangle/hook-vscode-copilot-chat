@@ -4,25 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RequestType } from '@vscode/copilot-api';
-import { workspace, type LanguageModelChat } from 'vscode';
-import { createRequestHMAC } from '../../../util/common/crypto';
+import { LanguageModelChat, workspace } from 'vscode';
 import { TaskSingler } from '../../../util/common/taskSingler';
+import { TokenizerType } from '../../../util/common/tokenizer';
 import { Emitter, Event } from '../../../util/vs/base/common/event';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { IInstantiationService, ServicesAccessor } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { IAuthenticationService } from '../../authentication/common/authentication';
-import { IConfigurationService } from '../../configuration/common/configurationService';
+import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { IEnvService } from '../../env/common/envService';
 import { ILogService } from '../../log/common/logService';
 import { IFetcherService } from '../../networking/common/fetcherService';
-import { getRequest } from '../../networking/common/networking';
 import { IRequestLogger } from '../../requestLogger/node/requestLogger';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { ICAPIClientService } from '../common/capiClient';
-import { ChatEndpointFamily, IChatModelInformation, ICompletionModelInformation, IEmbeddingModelInformation, IModelAPIResponse, isChatModelInformation, isCompletionModelInformation, isEmbeddingModelInformation } from '../common/endpointProvider';
-import { getMaxPromptTokens } from './chatEndpoint';
+import { ChatEndpointFamily, IChatModelInformation, ICompletionModelInformation, IEmbeddingModelInformation, IModelAPIResponse, isChatModelInformation, isCompletionModelInformation, isEmbeddingModelInformation, ModelSupportedEndpoint } from '../common/endpointProvider';
+import { ModelAliasRegistry } from '../common/modelAliasRegistry';
 
 export interface IModelMetadataFetcher {
 
@@ -136,19 +135,24 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 	 * @returns The resolved model with proper exp overrides and token counts
 	 */
 	private async _hydrateResolvedModel(resolvedModel: IModelAPIResponse | undefined): Promise<IModelAPIResponse> {
-		resolvedModel = resolvedModel ? await this._findExpOverride(resolvedModel) : undefined;
 		if (!resolvedModel) {
 			throw this._lastFetchError;
 		}
 
 		// If it's a chat model, update max prompt tokens based on settings + exp
 		if (isChatModelInformation(resolvedModel) && (resolvedModel.capabilities.limits)) {
-			resolvedModel.capabilities.limits.max_prompt_tokens = getMaxPromptTokens(this._configService, this._expService, resolvedModel);
+			resolvedModel.capabilities.limits.max_prompt_tokens = this._getMaxPromptTokensOverride(resolvedModel);
 			// Also ensure prompt tokens + output tokens <= context window. Output tokens is capped to max 15% input tokens
 			const outputTokens = Math.floor(Math.min(resolvedModel.capabilities.limits.max_output_tokens ?? 4096, resolvedModel.capabilities.limits.max_prompt_tokens * 0.15));
 			const contextWindow = resolvedModel.capabilities.limits.max_context_window_tokens ?? (outputTokens + resolvedModel.capabilities.limits.max_prompt_tokens);
 			resolvedModel.capabilities.limits.max_prompt_tokens = Math.min(resolvedModel.capabilities.limits.max_prompt_tokens, contextWindow - outputTokens);
 		}
+
+		// If it's a chat model, update showInModelPicker based on experiment overrides
+		if (isChatModelInformation(resolvedModel)) {
+			resolvedModel.model_picker_enabled = this._getShowInModelPickerOverride(resolvedModel);
+		}
+
 		if (resolvedModel.preview && !resolvedModel.name.endsWith('(Preview)')) {
 			// If the model is a preview model, we append (Preview) to the name
 			resolvedModel.name = `${resolvedModel.name} (Preview)`;
@@ -159,10 +163,10 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 	public async getChatModelFromFamily(family: ChatEndpointFamily): Promise<IChatModelInformation> {
 		await this._taskSingler.getOrCreate(ModelMetadataFetcher.ALL_MODEL_KEY, this._fetchModels.bind(this));
 		let resolvedModel: IModelAPIResponse | undefined;
+		family = ModelAliasRegistry.resolveAlias(family) as ChatEndpointFamily;
+
 		if (family === 'gpt-4.1') {
 			resolvedModel = this._familyMap.get('gpt-4.1')?.[0] ?? this._familyMap.get('gpt-4o')?.[0];
-		} else if (family === 'gpt-4o-mini') {
-			resolvedModel = this._familyMap.get('gpt-4o-mini')?.[0];
 		} else if (family === 'copilot-base') {
 			resolvedModel = this._copilotBaseModel;
 		} else {
@@ -204,24 +208,108 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 		return resolvedModel;
 	}
 
+	// private _shouldRefreshModels(): boolean {
+	// 	if (this._familyMap.size === 0) {
+	// 		return true;
+	// 	}
+	// 	const tenMinutes = 10 * 60 * 1000; // 30 seconds in milliseconds
+	// 	const now = Date.now();
+
+	// 	if (!this._lastFetchTime) {
+	// 		return true; // If there's no last fetch time, we should refresh
+	// 	}
+
+	// 	// We only want to fetch models if the current session is active
+	// 	if (!this._envService.isActive) {
+	// 		return false;
+	// 	}
+
+	// 	const timeSinceLastFetch = now - this._lastFetchTime;
+
+	// 	return timeSinceLastFetch > tenMinutes;
+	// }
+
+	// private async _fetchModels(force?: boolean): Promise<void> {
+	// 	if (!force && !this._shouldRefreshModels()) {
+	// 		return;
+	// 	}
+	// 	const requestStartTime = Date.now();
+
+	// 	const copilotToken = (await this._authService.getCopilotToken()).token;
+	// 	const requestId = generateUuid();
+	// 	const requestMetadata = { type: RequestType.Models, isModelLab: this._isModelLab };
+
+	// 	try {
+	// 		const response = await getRequest(
+	// 			this._fetcher,
+	// 			this._telemetryService,
+	// 			this._capiClientService,
+	// 			requestMetadata,
+	// 			copilotToken,
+	// 			await createRequestHMAC(process.env.HMAC_SECRET),
+	// 			'model-access',
+	// 			requestId,
+	// 		);
+
+	// 		this._lastFetchTime = Date.now();
+	// 		this._logService.info(`Fetched model metadata in ${Date.now() - requestStartTime}ms ${requestId}`);
+
+	// 		if (response.status < 200 || response.status >= 300) {
+	// 			// If we're rate limited and have models, we should just return
+	// 			if (response.status === 429 && this._familyMap.size > 0) {
+	// 				this._logService.warn(`Rate limited while fetching models ${requestId}`);
+	// 				return;
+	// 			}
+	// 			throw new Error(`Failed to fetch models (${requestId}): ${(await response.text()) || response.statusText || `HTTP ${response.status}`}`);
+	// 		}
+
+	// 		this._familyMap.clear();
+
+	// 		const data: IModelAPIResponse[] = (await response.json()).data;
+	// 		this._requestLogger.logModelListCall(requestId, requestMetadata, data);
+	// 		for (let model of data) {
+	// 			model = await this._hydrateResolvedModel(model);
+	// 			const isCompletionModel = isCompletionModelInformation(model);
+	// 			// The base model is whatever model is deemed "fallback" by the server
+	// 			if (model.is_chat_fallback && !isCompletionModel) {
+	// 				this._copilotBaseModel = model;
+	// 			}
+	// 			const family = model.capabilities.family;
+	// 			const familyMap = isCompletionModel ? this._completionsFamilyMap : this._familyMap;
+	// 			if (!familyMap.has(family)) {
+	// 				familyMap.set(family, []);
+	// 			}
+	// 			familyMap.get(family)?.push(model);
+	// 		}
+	// 		this._lastFetchError = undefined;
+	// 		this._onDidModelRefresh.fire();
+
+	// 		if (this.collectFetcherTelemetry) {
+	// 			this._instantiationService.invokeFunction(this.collectFetcherTelemetry, undefined);
+	// 		}
+	// 	} catch (e) {
+	// 		this._logService.error(e, `Failed to fetch models (${requestId})`);
+	// 		this._lastFetchError = e;
+	// 		this._lastFetchTime = 0;
+	// 		// If we fail to fetch models, we should try again next time
+	// 		if (this.collectFetcherTelemetry) {
+	// 			this._instantiationService.invokeFunction(this.collectFetcherTelemetry, e);
+	// 		}
+	// 	}
+	// }
+
 	private _shouldRefreshModels(): boolean {
 		if (this._familyMap.size === 0) {
 			return true;
 		}
-		const tenMinutes = 10 * 60 * 1000; // 10 minutes in milliseconds
+		const tenMinutes = 30 * 1000; // 30 seconds in milliseconds
 		const now = Date.now();
 
 		if (!this._lastFetchTime) {
 			return true; // If there's no last fetch time, we should refresh
 		}
 
-		// We only want to fetch models if the current session is active
-		if (!this._envService.isActive) {
-			return false;
-		}
-
 		const timeSinceLastFetch = now - this._lastFetchTime;
-
 		return timeSinceLastFetch > tenMinutes;
 	}
 
@@ -229,756 +317,206 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 		if (!force && !this._shouldRefreshModels()) {
 			return;
 		}
-		const requestStartTime = Date.now();
 
-		const copilotToken = (await this._authService.getCopilotToken()).token;
 		const requestId = generateUuid();
 		const requestMetadata = { type: RequestType.Models, isModelLab: this._isModelLab };
 
 		try {
-			let models;
+			const base_config = workspace.getConfiguration('github.copilot.hackModels.base');
+			const inline_config = workspace.getConfiguration('github.copilot.hackModels.inline');
+			const embedding_config = workspace.getConfiguration('github.copilot.hackModels.embedding');
+			const fast_config = workspace.getConfiguration('github.copilot.hackModels.fast');
 
-			try {
-				let config = workspace.getConfiguration('github.copilot').get('forceOffline');
-				if (config) {
-					throw Error('offline');
+			const models: IModelAPIResponse[] = [
+				// base
+				{
+					id: "gpt-5-mini",
+					preview: false,
+					baseUrl: base_config.get("baseUrl", "http://steam"),
+					apiKey: base_config.get("apiKey", "xxxxx"),
+					name: base_config.get("model", "gpt-5.2"),
+					model: base_config.get("model", "gpt-5.2"),
+					is_chat_default: base_config.get("is_chat_default", true),
+					is_chat_fallback: true,
+					model_picker_enabled: base_config.get("model_picker_enabled", true),
+					version: base_config.get("version", "v1.0.0"),
+					supported_endpoints: base_config.get("supported_endpoints", [ModelSupportedEndpoint.ChatCompletions]) as ModelSupportedEndpoint[],
+					capabilities: {
+						type: "chat",
+						family: "gpt-5-mini",
+						tokenizer: base_config.get("capabilities.tokenizer", TokenizerType.O200K),
+						limits: {
+							max_context_window_tokens: base_config.get("capabilities.limits.max_context_window_tokens", 128000),
+							max_output_tokens: base_config.get("capabilities.limits.max_output_tokens", 64000),
+							max_prompt_tokens: base_config.get("capabilities.limits.max_prompt_tokens", 128000),
+							vision: {
+								max_prompt_images: base_config.get("capabilities.limits.vision.max_prompt_images", 1)
+							}
+						},
+						supports: {
+							parallel_tool_calls: base_config.get("capabilities.supports.parallel_tool_calls", true),
+							streaming: base_config.get("capabilities.supports.streaming", true),
+							tool_calls: base_config.get("capabilities.supports.tool_calls", true),
+							vision: base_config.get("capabilities.supports.vision", true)
+						},
+					},
+					policy: {
+						state: "enabled",
+						terms: "Enable access to the latest GPT-5 mini model from OpenAI. [Learn more about how GitHub Copilot serves GPT-5 mini](https://gh.io/copilot-openai)."
+					},
+					billing: {
+						is_premium: true,
+						multiplier: 1
+					},
+				},
+				// ChatCompletions
+				{
+					id: "gpt-41-copilot",
+					preview: false,
+					baseUrl: inline_config.get("baseUrl", "http://steam"),
+					apiKey: inline_config.get("apiKey", "xxxxx"),
+					model: inline_config.get("model", "gpt-4.1"),
+					name: inline_config.get("model", "gpt-4.1"),
+					is_chat_default: inline_config.get("is_chat_default", false),
+					is_chat_fallback: inline_config.get("is_chat_fallback", false),
+					model_picker_enabled: inline_config.get("model_picker_enabled", true),
+					version: inline_config.get("version", "v1.0.0"),
+					supported_endpoints: inline_config.get("supported_endpoints", [ModelSupportedEndpoint.ChatCompletions]) as ModelSupportedEndpoint[],
+					capabilities: {
+						type: "completion",
+						family: "gpt-4.1",
+						tokenizer: inline_config.get("capabilities.tokenizer", TokenizerType.O200K),
+					},
+					billing: {
+						is_premium: true,
+						multiplier: 1
+					},
+				},
+				// embedding
+				{
+					id: "text-embedding-3-small",
+					preview: false,
+					model_picker_enabled: false,
+					baseUrl: embedding_config.get("baseUrl", "http://steam"),
+					apiKey: embedding_config.get("apiKey", "xxxxx"),
+					model: embedding_config.get("model", "text-embedding-3-small"),
+					name: embedding_config.get("model", "text-embedding-3-small"),
+					is_chat_default: false,
+					is_chat_fallback: false,
+					version: embedding_config.get("version", "v1.0.0"),
+					capabilities: {
+						type: "embeddings",
+						family: "text-embedding-3-small",
+						chunk_strategy: embedding_config.get("capabilities.chunk_strategy", "token"),
+						tokenizer: embedding_config.get("capabilities.tokenizer", TokenizerType.O200K),
+						limits: {
+							max_inputs: embedding_config.get("capabilities.limits.max_inputs", 10),
+							max_token: embedding_config.get("capabilities.limits.max_token", 250)
+						},
+					},
+					billing: {
+						is_premium: true,
+						multiplier: 1
+					},
+				},
+				// fast
+				{
+					id: "gpt-4o-mini",
+					preview: false,
+					baseUrl: fast_config.get("baseUrl", "http://steam"),
+					apiKey: fast_config.get("apiKey", "xxxxx"),
+					name: fast_config.get("model", "gpt-4o-mini"),
+					model: fast_config.get("model", "gpt-4o-mini"),
+					is_chat_default: fast_config.get("is_chat_default", true),
+					is_chat_fallback: fast_config.get("is_chat_fallback", false),
+					model_picker_enabled: fast_config.get("model_picker_enabled", false),
+					version: fast_config.get("version", "v1.0.0"),
+					supported_endpoints: fast_config.get("supported_endpoints", [ModelSupportedEndpoint.ChatCompletions]) as ModelSupportedEndpoint[],
+					capabilities: {
+						type: "chat",
+						family: "gpt-4o-mini",
+						tokenizer: fast_config.get("capabilities.tokenizer", TokenizerType.O200K),
+						limits: {
+							max_context_window_tokens: fast_config.get("capabilities.limits.max_context_window_tokens", 128000),
+							max_output_tokens: fast_config.get("capabilities.limits.max_output_tokens", 64000),
+							max_prompt_tokens: fast_config.get("capabilities.limits.max_prompt_tokens", 128000),
+							vision: {
+								max_prompt_images: fast_config.get("capabilities.limits.vision.max_prompt_images", 1)
+							}
+						},
+						supports: {
+							parallel_tool_calls: fast_config.get("capabilities.supports.parallel_tool_calls", true),
+							streaming: fast_config.get("capabilities.supports.streaming", true),
+							tool_calls: fast_config.get("capabilities.supports.tool_calls", true),
+							vision: fast_config.get("capabilities.supports.vision", true)
+						},
+					},
+					billing: {
+						is_premium: true,
+						multiplier: 1
+					},
+				},
+				{
+					id: "gpt-4.1",
+					preview: false,
+					baseUrl: fast_config.get("baseUrl", "http://steam"),
+					apiKey: fast_config.get("apiKey", "xxxxx"),
+					name: fast_config.get("model", "gpt-4.1"),
+					model: fast_config.get("model", "gpt-4.1"),
+					is_chat_default: fast_config.get("is_chat_default", true),
+					is_chat_fallback: fast_config.get("is_chat_fallback", false),
+					model_picker_enabled: false,
+					version: fast_config.get("version", "v1.0.0"),
+					supported_endpoints: fast_config.get("supported_endpoints", [ModelSupportedEndpoint.ChatCompletions]) as ModelSupportedEndpoint[],
+					capabilities: {
+						type: "chat",
+						family: "gpt-4.1",
+						tokenizer: fast_config.get("capabilities.tokenizer", TokenizerType.O200K),
+						limits: {
+							max_context_window_tokens: fast_config.get("capabilities.limits.max_context_window_tokens", 128000),
+							max_output_tokens: fast_config.get("capabilities.limits.max_output_tokens", 64000),
+							max_prompt_tokens: fast_config.get("capabilities.limits.max_prompt_tokens", 128000),
+							vision: {
+								max_prompt_images: fast_config.get("capabilities.limits.vision.max_prompt_images", 1)
+							}
+						},
+						supports: {
+							parallel_tool_calls: fast_config.get("capabilities.supports.parallel_tool_calls", true),
+							streaming: fast_config.get("capabilities.supports.streaming", true),
+							tool_calls: fast_config.get("capabilities.supports.tool_calls", true),
+							vision: fast_config.get("capabilities.supports.vision", true)
+						},
+					},
+					billing: {
+						is_premium: true,
+						multiplier: 1
+					},
 				}
+			];
 
-				const response = await getRequest(
-					this._fetcher,
-					this._telemetryService,
-					this._capiClientService,
-					requestMetadata,
-					copilotToken,
-					await createRequestHMAC(process.env.HMAC_SECRET),
-					'model-access',
-					requestId,
-				);
+			const extras = workspace.getConfiguration('github.copilot.hackModels').get('extras', []) as IModelAPIResponse[];
+			for (var i = 0; i < extras.length; i++) {
+				const item = extras[i];
+				try {
+					item.id = item.model ?? `custom_${i}`;
+					item.name = item.model ?? `Custom Model ${i}`;
+					item.model_picker_enabled = true;
 
-				this._lastFetchTime = Date.now();
-				this._logService.info(`Fetched model metadata in ${Date.now() - requestStartTime}ms ${requestId}`);
+					if (item.capabilities.family.length <= 0) {
+						item.capabilities.family = "custom";
+					}
 
-				if (!response.ok) {
-					throw Error('failed to request');
+					models.push(item);
+				} catch (e) {
+					this._logService.error(e, `Failed to append extras model ${String(item.model)}.`);
 				}
-
-				models = (await response.json()).data;
-			} catch (e) {
-				models = JSON.parse(`
-				 [
-						{
-							"auto": true,
-							"billing": {
-								"is_premium": false,
-								"multiplier": 0,
-								"restricted_to": [
-									"free",
-									"pro",
-									"pro_plus",
-									"business",
-									"enterprise"
-								]
-							},
-							"capabilities": {
-								"family": "gpt-5-mini",
-								"limits": {
-									"max_context_window_tokens": 264000,
-									"max_output_tokens": 64000,
-									"max_prompt_tokens": 127988,
-									"vision": {
-										"max_prompt_image_size": 3145728,
-										"max_prompt_images": 1,
-										"supported_media_types": [
-											"image/jpeg",
-											"image/png",
-											"image/webp",
-											"image/gif"
-										]
-									}
-								},
-								"object": "model_capabilities",
-								"supports": {
-									"parallel_tool_calls": true,
-									"streaming": true,
-									"structured_outputs": true,
-									"tool_calls": true,
-									"vision": true
-								},
-								"tokenizer": "o200k_base",
-								"type": "chat"
-							},
-							"id": "gpt-5-mini",
-							"is_chat_default": true,
-							"is_chat_fallback": false,
-							"model_picker_category": "lightweight",
-							"model_picker_enabled": false,
-							"name": "GPT-5 mini",
-							"object": "model",
-							"policy": {
-								"state": "enabled",
-								"terms": "Enable access to the latest GPT-5 mini model from OpenAI. [Learn more about how GitHub Copilot serves GPT-5 mini](https://gh.io/copilot-openai)."
-							},
-							"preview": false,
-							"vendor": "Azure OpenAI",
-							"version": "gpt-5-mini"
-						},
-						{
-							"billing": {
-								"is_premium": true,
-								"multiplier": 1,
-								"restricted_to": [
-									"pro",
-									"pro_plus",
-									"max",
-									"business",
-									"enterprise"
-								]
-							},
-							"capabilities": {
-								"family": "gpt-5",
-								"limits": {
-									"max_context_window_tokens": 264000,
-									"max_output_tokens": 64000,
-									"max_prompt_tokens": 127988,
-									"vision": {
-										"max_prompt_image_size": 3145728,
-										"max_prompt_images": 1,
-										"supported_media_types": [
-											"image/jpeg",
-											"image/png",
-											"image/webp",
-											"image/gif"
-										]
-									}
-								},
-								"object": "model_capabilities",
-								"supports": {
-									"parallel_tool_calls": true,
-									"streaming": true,
-									"structured_outputs": true,
-									"tool_calls": true,
-									"vision": true
-								},
-								"tokenizer": "o200k_base",
-								"type": "chat"
-							},
-							"id": "gpt-5",
-							"is_chat_default": false,
-							"is_chat_fallback": false,
-							"model_picker_category": "versatile",
-							"model_picker_enabled": false,
-							"name": "GPT-5",
-							"object": "model",
-							"policy": {
-								"state": "enabled",
-								"terms": "Enable access to the latest GPT-5 model from OpenAI. [Learn more about how GitHub Copilot serves GPT-5](https://gh.io/copilot-openai)."
-							},
-							"preview": false,
-							"vendor": "Azure OpenAI",
-							"version": "gpt-5"
-						},
-						{
-							"billing": {
-								"is_premium": false,
-								"multiplier": 0,
-								"restricted_to": [
-									"free",
-									"pro",
-									"pro_plus",
-									"business",
-									"enterprise"
-								]
-							},
-							"capabilities": {
-								"family": "text-embedding-3-small",
-								"limits": {
-									"max_context_window_tokens": 16384,
-									"max_output_tokens": 4096,
-									"max_prompt_tokens": 13918
-								},
-								"object": "model_capabilities",
-								"supports": {
-									"streaming": true,
-									"tool_calls": true
-								},
-								"tokenizer": "cl100k_base",
-								"type": "embeddings"
-							},
-							"id": "gpt-3.5-turbo",
-							"is_chat_default": false,
-							"is_chat_fallback": false,
-							"model_picker_enabled": false,
-							"name": "GPT 3.5 Turbo",
-							"object": "model",
-							"preview": false,
-							"vendor": "Azure OpenAI",
-							"version": "gpt-3.5-turbo-0613"
-						},
-						{
-							"billing": {
-								"is_premium": false,
-								"multiplier": 0,
-								"restricted_to": [
-									"free",
-									"pro",
-									"pro_plus",
-									"business",
-									"enterprise"
-								]
-							},
-							"capabilities": {
-								"family": "gpt-3.5-turbo",
-								"limits": {
-									"max_context_window_tokens": 16384,
-									"max_output_tokens": 4096,
-									"max_prompt_tokens": 13918
-								},
-								"object": "model_capabilities",
-								"supports": {
-									"streaming": true,
-									"tool_calls": true
-								},
-								"tokenizer": "cl100k_base",
-								"type": "chat"
-							},
-							"id": "gpt-3.5-turbo-0613",
-							"is_chat_default": false,
-							"is_chat_fallback": false,
-							"model_picker_enabled": false,
-							"name": "GPT 3.5 Turbo",
-							"object": "model",
-							"preview": false,
-							"vendor": "Azure OpenAI",
-							"version": "gpt-3.5-turbo-0613"
-						},
-						{
-							"billing": {
-								"is_premium": false,
-								"multiplier": 0,
-								"restricted_to": [
-									"free",
-									"pro",
-									"pro_plus",
-									"business",
-									"enterprise"
-								]
-							},
-							"capabilities": {
-								"family": "gpt-4o-mini",
-								"limits": {
-									"max_context_window_tokens": 128000,
-									"max_output_tokens": 4096,
-									"max_prompt_tokens": 63988
-								},
-								"object": "model_capabilities",
-								"supports": {
-									"parallel_tool_calls": true,
-									"streaming": true,
-									"tool_calls": true
-								},
-								"tokenizer": "o200k_base",
-								"type": "chat"
-							},
-							"id": "gpt-4o-mini",
-							"is_chat_default": false,
-							"is_chat_fallback": false,
-							"model_picker_enabled": false,
-							"name": "GPT-4o mini",
-							"object": "model",
-							"preview": false,
-							"vendor": "Azure OpenAI",
-							"version": "gpt-4o-mini-2024-07-18"
-						},
-						{
-							"billing": {
-								"is_premium": false,
-								"multiplier": 0,
-								"restricted_to": [
-									"free",
-									"pro",
-									"pro_plus",
-									"business",
-									"enterprise"
-								]
-							},
-							"capabilities": {
-								"family": "gpt-4o-mini",
-								"limits": {
-									"max_context_window_tokens": 128000,
-									"max_output_tokens": 4096,
-									"max_prompt_tokens": 63988
-								},
-								"object": "model_capabilities",
-								"supports": {
-									"parallel_tool_calls": true,
-									"streaming": true,
-									"tool_calls": true
-								},
-								"tokenizer": "o200k_base",
-								"type": "chat"
-							},
-							"id": "gpt-4o-mini-2024-07-18",
-							"is_chat_default": false,
-							"is_chat_fallback": false,
-							"model_picker_enabled": false,
-							"name": "GPT-4o mini",
-							"object": "model",
-							"preview": false,
-							"vendor": "Azure OpenAI",
-							"version": "gpt-4o-mini-2024-07-18"
-						},
-						{
-							"billing": {
-								"is_premium": false,
-								"multiplier": 0,
-								"restricted_to": [
-									"free",
-									"pro",
-									"pro_plus",
-									"business",
-									"enterprise"
-								]
-							},
-							"capabilities": {
-								"family": "gpt-4",
-								"limits": {
-									"max_context_window_tokens": 32768,
-									"max_output_tokens": 4096,
-									"max_prompt_tokens": 28663
-								},
-								"object": "model_capabilities",
-								"supports": {
-									"streaming": true,
-									"tool_calls": true
-								},
-								"tokenizer": "cl100k_base",
-								"type": "chat"
-							},
-							"id": "gpt-4",
-							"is_chat_default": false,
-							"is_chat_fallback": false,
-							"model_picker_enabled": false,
-							"name": "GPT 4",
-							"object": "model",
-							"preview": false,
-							"vendor": "Azure OpenAI",
-							"version": "gpt-4-0613"
-						},
-						{
-							"billing": {
-								"is_premium": false,
-								"multiplier": 0,
-								"restricted_to": [
-									"free",
-									"pro",
-									"pro_plus",
-									"business",
-									"enterprise"
-								]
-							},
-							"capabilities": {
-								"family": "gpt-4",
-								"limits": {
-									"max_context_window_tokens": 32768,
-									"max_output_tokens": 4096,
-									"max_prompt_tokens": 28663
-								},
-								"object": "model_capabilities",
-								"supports": {
-									"streaming": true,
-									"tool_calls": true
-								},
-								"tokenizer": "cl100k_base",
-								"type": "chat"
-							},
-							"id": "gpt-4-0613",
-							"is_chat_default": false,
-							"is_chat_fallback": false,
-							"model_picker_enabled": false,
-							"name": "GPT 4",
-							"object": "model",
-							"preview": false,
-							"vendor": "Azure OpenAI",
-							"version": "gpt-4-0613"
-						},
-						{
-							"billing": {
-								"is_premium": false,
-								"multiplier": 0,
-								"restricted_to": [
-									"free",
-									"pro",
-									"pro_plus",
-									"business",
-									"enterprise"
-								]
-							},
-							"capabilities": {
-								"family": "gpt-4o",
-								"limits": {
-									"max_context_window_tokens": 128000,
-									"max_output_tokens": 4096,
-									"max_prompt_tokens": 63988,
-									"vision": {
-										"max_prompt_image_size": 3145728,
-										"max_prompt_images": 1,
-										"supported_media_types": [
-											"image/jpeg",
-											"image/png",
-											"image/webp",
-											"image/gif"
-										]
-									}
-								},
-								"object": "model_capabilities",
-								"supports": {
-									"parallel_tool_calls": true,
-									"streaming": true,
-									"tool_calls": true,
-									"vision": true
-								},
-								"tokenizer": "o200k_base",
-								"type": "chat"
-							},
-							"id": "gpt-4o",
-							"is_chat_default": false,
-							"is_chat_fallback": true,
-							"model_picker_category": "versatile",
-							"model_picker_enabled": false,
-							"name": "GPT-4o",
-							"object": "model",
-							"preview": false,
-							"vendor": "Azure OpenAI",
-							"version": "gpt-4o-2024-11-20"
-						},
-						{
-							"billing": {
-								"is_premium": false,
-								"multiplier": 0,
-								"restricted_to": [
-									"free",
-									"pro",
-									"pro_plus",
-									"business",
-									"enterprise"
-								]
-							},
-							"capabilities": {
-								"family": "gpt-4o",
-								"limits": {
-									"max_context_window_tokens": 128000,
-									"max_output_tokens": 16384,
-									"max_prompt_tokens": 63988,
-									"vision": {
-										"max_prompt_image_size": 3145728,
-										"max_prompt_images": 1,
-										"supported_media_types": [
-											"image/jpeg",
-											"image/png",
-											"image/webp",
-											"image/gif"
-										]
-									}
-								},
-								"object": "model_capabilities",
-								"supports": {
-									"parallel_tool_calls": true,
-									"streaming": true,
-									"tool_calls": true,
-									"vision": true
-								},
-								"tokenizer": "o200k_base",
-								"type": "chat"
-							},
-							"id": "gpt-4o-2024-11-20",
-							"is_chat_default": false,
-							"is_chat_fallback": false,
-							"model_picker_enabled": false,
-							"name": "GPT-4o",
-							"object": "model",
-							"preview": false,
-							"vendor": "Azure OpenAI",
-							"version": "gpt-4o-2024-11-20"
-						},
-						{
-							"billing": {
-								"is_premium": false,
-								"multiplier": 0,
-								"restricted_to": [
-									"free",
-									"pro",
-									"pro_plus",
-									"business",
-									"enterprise"
-								]
-							},
-							"capabilities": {
-								"family": "gpt-4o",
-								"limits": {
-									"max_context_window_tokens": 128000,
-									"max_output_tokens": 4096,
-									"max_prompt_tokens": 63988,
-									"vision": {
-										"max_prompt_image_size": 3145728,
-										"max_prompt_images": 1,
-										"supported_media_types": [
-											"image/jpeg",
-											"image/png",
-											"image/webp",
-											"image/gif"
-										]
-									}
-								},
-								"object": "model_capabilities",
-								"supports": {
-									"parallel_tool_calls": true,
-									"streaming": true,
-									"tool_calls": true,
-									"vision": true
-								},
-								"tokenizer": "o200k_base",
-								"type": "chat"
-							},
-							"id": "gpt-4o-2024-05-13",
-							"is_chat_default": false,
-							"is_chat_fallback": false,
-							"model_picker_enabled": false,
-							"name": "GPT-4o",
-							"object": "model",
-							"preview": false,
-							"vendor": "Azure OpenAI",
-							"version": "gpt-4o-2024-05-13"
-						},
-						{
-							"billing": {
-								"is_premium": false,
-								"multiplier": 0,
-								"restricted_to": [
-									"free",
-									"pro",
-									"pro_plus",
-									"business",
-									"enterprise"
-								]
-							},
-							"capabilities": {
-								"family": "gpt-4o",
-								"limits": {
-									"max_context_window_tokens": 128000,
-									"max_output_tokens": 4096,
-									"max_prompt_tokens": 63988
-								},
-								"object": "model_capabilities",
-								"supports": {
-									"parallel_tool_calls": true,
-									"streaming": true,
-									"tool_calls": true
-								},
-								"tokenizer": "o200k_base",
-								"type": "chat"
-							},
-							"id": "gpt-4-o-preview",
-							"is_chat_default": false,
-							"is_chat_fallback": false,
-							"model_picker_enabled": false,
-							"name": "GPT-4o",
-							"object": "model",
-							"preview": false,
-							"vendor": "Azure OpenAI",
-							"version": "gpt-4o-2024-05-13"
-						},
-						{
-							"billing": {
-								"is_premium": false,
-								"multiplier": 0,
-								"restricted_to": [
-									"free",
-									"pro",
-									"pro_plus",
-									"business",
-									"enterprise"
-								]
-							},
-							"capabilities": {
-								"family": "gpt-4o",
-								"limits": {
-									"max_context_window_tokens": 128000,
-									"max_output_tokens": 16384,
-									"max_prompt_tokens": 63988
-								},
-								"object": "model_capabilities",
-								"supports": {
-									"parallel_tool_calls": true,
-									"streaming": true,
-									"tool_calls": true
-								},
-								"tokenizer": "o200k_base",
-								"type": "chat"
-							},
-							"id": "gpt-4o-2024-08-06",
-							"is_chat_default": false,
-							"is_chat_fallback": false,
-							"model_picker_enabled": false,
-							"name": "GPT-4o",
-							"object": "model",
-							"preview": false,
-							"vendor": "Azure OpenAI",
-							"version": "gpt-4o-2024-08-06"
-						},
-						{
-							"billing": {
-								"is_premium": true,
-								"multiplier": 0.33,
-								"restricted_to": [
-									"free",
-									"pro",
-									"pro_plus",
-									"business",
-									"enterprise"
-								]
-							},
-							"capabilities": {
-								"family": "o3-mini",
-								"limits": {
-									"max_context_window_tokens": 200000,
-									"max_output_tokens": 100000,
-									"max_prompt_tokens": 63988
-								},
-								"object": "model_capabilities",
-								"supports": {
-									"streaming": true,
-									"structured_outputs": true,
-									"tool_calls": true
-								},
-								"tokenizer": "o200k_base",
-								"type": "chat"
-							},
-							"id": "o3-mini-paygo",
-							"is_chat_default": false,
-							"is_chat_fallback": false,
-							"model_picker_enabled": false,
-							"name": "o3-mini",
-							"object": "model",
-							"preview": false,
-							"vendor": "Azure OpenAI",
-							"version": "o3-mini-paygo"
-						},
-						{
-							"billing": {
-								"is_premium": false,
-								"multiplier": 0,
-								"restricted_to": [
-									"pro",
-									"pro_plus",
-									"max",
-									"business",
-									"enterprise"
-								]
-							},
-							"capabilities": {
-								"family": "grok-code",
-								"limits": {
-									"max_context_window_tokens": 128000,
-									"max_output_tokens": 64000,
-									"max_prompt_tokens": 108792
-								},
-								"object": "model_capabilities",
-								"supports": {
-									"streaming": true,
-									"structured_outputs": true,
-									"tool_calls": true
-								},
-								"tokenizer": "o200k_base",
-								"type": "chat"
-							},
-							"id": "grok-code-fast-1",
-							"is_chat_default": false,
-							"is_chat_fallback": false,
-							"model_picker_category": "powerful",
-							"model_picker_enabled": false,
-							"name": "Grok Code Fast 1 (Preview)",
-							"object": "model",
-							"policy": {
-								"state": "enabled",
-								"terms": "Enable access to the latest Grok Code Fast 1 model from xAI. If enabled, you instruct GitHub Copilot to send data to xAI Grok Code Fast 1. [Learn more about how GitHub Copilot serves Grok Code Fast 1](https://docs.github.com/en/copilot/reference/ai-models/model-hosting#xai-models). During launch week, [promotional pricing is 0x](https://gh.io/copilot-grok-code-promo)."
-							},
-							"preview": true,
-							"vendor": "xAI",
-							"version": "grok-code-fast-1"
-						},
-						{
-							"billing": {
-								"is_premium": true,
-								"multiplier": 1,
-								"restricted_to": [
-									"pro",
-									"pro_plus",
-									"max",
-									"business",
-									"enterprise"
-								]
-							},
-							"capabilities": {
-								"family": "gemini-2.5-pro",
-								"limits": {
-									"max_context_window_tokens": 128000,
-									"max_output_tokens": 64000,
-									"max_prompt_tokens": 108792,
-									"vision": {
-										"max_prompt_image_size": 3145728,
-										"max_prompt_images": 1,
-										"supported_media_types": [
-											"image/jpeg",
-											"image/png",
-											"image/webp",
-											"image/heic",
-											"image/heif"
-										]
-									}
-								},
-								"object": "model_capabilities",
-								"supports": {
-									"max_thinking_budget": 32768,
-									"min_thinking_budget": 128,
-									"parallel_tool_calls": true,
-									"streaming": true,
-									"tool_calls": true,
-									"vision": true
-								},
-								"tokenizer": "o200k_base",
-								"type": "chat"
-							},
-							"id": "gemini-2.5-pro",
-							"is_chat_default": false,
-							"is_chat_fallback": false,
-							"model_picker_category": "powerful",
-							"model_picker_enabled": false,
-							"name": "Gemini 2.5 Pro",
-							"object": "model",
-							"policy": {
-								"state": "enabled",
-								"terms": "Enable access to the latest Gemini 2.5 Pro model from Google. [Learn more about how GitHub Copilot serves Gemini 2.5 Pro](https://docs.github.com/en/copilot/using-github-copilot/ai-models/choosing-the-right-ai-model-for-your-task#gemini-25-pro)."
-							},
-							"preview": false,
-							"vendor": "Google",
-							"version": "gemini-2.5-pro"
-						}
-					]
-			`);
-
 			}
 
-
-			// NOTE - 模型配置，只是用于通过验证，实际配置利用 OAI 插件
 			this._familyMap.clear();
 
-
-			const data: IModelAPIResponse[] = models as IModelAPIResponse[];
-			// const data: IModelAPIResponse[] = (await response.json()).data;
-			this._requestLogger.logModelListCall(requestId, requestMetadata, data);
-
-			for (const rawModel of data) {
-				const model = await this._hydrateResolvedModel(rawModel);
+			this._requestLogger.logModelListCall(requestId, requestMetadata, models);
+			for (let model of models) {
+				model = await this._hydrateResolvedModel(model);
 				const isCompletionModel = isCompletionModelInformation(model);
 				// The base model is whatever model is deemed "fallback" by the server
 				if (model.is_chat_fallback && !isCompletionModel) {
@@ -991,86 +529,67 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 				}
 				familyMap.get(family)?.push(model);
 			}
+
+			this._lastFetchTime = Date.now();
 			this._lastFetchError = undefined;
 			this._onDidModelRefresh.fire();
 
-			if (this.collectFetcherTelemetry) {
-				this._instantiationService.invokeFunction(this.collectFetcherTelemetry, undefined);
-			}
 		} catch (e) {
 			this._logService.error(e, `Failed to fetch models (${requestId})`);
 			this._lastFetchError = e;
 			this._lastFetchTime = 0;
-			// If we fail to fetch models, we should try again next time
-			if (this.collectFetcherTelemetry) {
-				this._instantiationService.invokeFunction(this.collectFetcherTelemetry, e);
-			}
 		}
 	}
 
-	private async _fetchModel(modelId: string): Promise<IModelAPIResponse | undefined> {
-		const copilotToken = (await this._authService.getCopilotToken()).token;
-		const requestId = generateUuid();
-		const requestMetadata = { type: RequestType.ListModel, modelId: modelId };
+	// get ChatMaxNumTokens from config for experimentation
+	private _getMaxPromptTokensOverride(chatModelInfo: IChatModelInformation): number {
+		// check debug override ChatMaxTokenNum
+		const chatMaxTokenNumOverride = this._configService.getConfig(ConfigKey.TeamInternal.DebugOverrideChatMaxTokenNum); // can only be set by internal users
+		// Base 3 tokens for each OpenAI completion
+		let modelLimit = -3;
+		// if option is set, takes precedence over any other logic
+		if (chatMaxTokenNumOverride > 0) {
+			modelLimit += chatMaxTokenNumOverride;
+			return modelLimit;
+		}
 
+		let experimentalOverrides: Record<string, number> = {};
 		try {
-			const response = await getRequest(
-				this._fetcher,
-				this._telemetryService,
-				this._capiClientService,
-				requestMetadata,
-				copilotToken,
-				await createRequestHMAC(process.env.HMAC_SECRET),
-				'model-access',
-				requestId,
-			);
-
-			const data: IModelAPIResponse = await response.json();
-			if (response.status !== 200) {
-				this._logService.error(`Failed to fetch model ${modelId} (requestId: ${requestId}): ${JSON.stringify(data)}`);
-				return;
-			}
-			this._requestLogger.logModelListCall(requestId, requestMetadata, [data]);
-			if (data.capabilities.type === 'completion') {
-				return;
-			}
-			// Functions that call this method, check the family map first so this shouldn't result in duplicate entries
-			if (this._familyMap.has(data.capabilities.family)) {
-				this._familyMap.get(data.capabilities.family)?.push(data);
-			} else {
-				this._familyMap.set(data.capabilities.family, [data]);
-			}
-			this._onDidModelRefresh.fire();
-			return data;
+			const expValue = this._expService.getTreatmentVariable<string>('copilotchat.contextWindows');
+			experimentalOverrides = JSON.parse(expValue ?? '{}');
 		} catch {
-			// Couldn't find this model, must not be availabe in CAPI.
-			return undefined;
+			// If the experiment service either is not available or returns a bad value we ignore the overrides
 		}
+
+		// If there's an experiment that takes precedence over what comes back from CAPI
+		if (experimentalOverrides[chatModelInfo.id]) {
+			modelLimit += experimentalOverrides[chatModelInfo.id];
+			return modelLimit;
+		}
+
+		// Check if CAPI has prompt token limits and return those
+		if (chatModelInfo.capabilities?.limits?.max_prompt_tokens) {
+			modelLimit += chatModelInfo.capabilities.limits.max_prompt_tokens;
+			return modelLimit;
+		} else if (chatModelInfo.capabilities.limits?.max_context_window_tokens) {
+			// Otherwise return the context window as the prompt tokens for cases where CAPI doesn't configure the prompt tokens
+			modelLimit += chatModelInfo.capabilities.limits.max_context_window_tokens;
+			return modelLimit;
+		}
+
+		return modelLimit;
 	}
 
-	private async _findExpOverride(resolvedModel: IModelAPIResponse): Promise<IModelAPIResponse | undefined> {
-		// This is a mapping of model id to model id. Allowing us to override the request for any model with a different model
-		let modelExpOverrides: { [key: string]: string } = {};
-		const expResult = this._expService.getTreatmentVariable<string>('copilotchat.modelOverrides');
+	private _getShowInModelPickerOverride(resolvedModel: IModelAPIResponse): boolean {
+		let modelPickerOverrides: Record<string, boolean> = {};
+		const expResult = this._expService.getTreatmentVariable<string>('copilotchat.showInModelPicker');
 		try {
-			modelExpOverrides = JSON.parse(expResult || '{}');
+			modelPickerOverrides = JSON.parse(expResult || '{}');
 		} catch {
 			// No-op if parsing experiment fails
 		}
-		if (modelExpOverrides[resolvedModel.id]) {
-			for (const [, models] of this._familyMap) {
-				const model = models.find(m => m.id === modelExpOverrides[resolvedModel.id]);
-				// Found the model in the cache, return it
-				if (model) {
-					return model;
-				}
-			}
-			const experimentalModel = await this._taskSingler.getOrCreate(modelExpOverrides[resolvedModel.id], () => this._fetchModel(modelExpOverrides[resolvedModel.id]));
 
-			// Use the experimental model if it exists, otherwise fallback to the normal model we resolved
-			resolvedModel = experimentalModel ?? resolvedModel;
-		}
-		return resolvedModel;
+		return modelPickerOverrides[resolvedModel.id] ?? resolvedModel.model_picker_enabled;
 	}
 }
 

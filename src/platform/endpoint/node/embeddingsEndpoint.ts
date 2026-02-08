@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RequestMetadata, RequestType } from '@vscode/copilot-api';
-import { workspace } from 'vscode';
-import { ITokenizer, TokenizerType } from '../../../util/common/tokenizer';
+import { ITokenizer } from '../../../util/common/tokenizer';
 import { GlobalChunkingDefaults } from '../../chunking/common/chunkingService';
 import { LEGACY_EMBEDDING_MODEL_ID } from '../../embeddings/common/embeddingsComputer';
 import { IEmbeddingsEndpoint } from '../../networking/common/networking';
@@ -15,23 +14,20 @@ import { IEmbeddingModelInformation } from '../common/endpointProvider';
 export class EmbeddingEndpoint implements IEmbeddingsEndpoint {
 	public readonly maxBatchSize: number;
 	public readonly modelMaxPromptTokens: number;
-	public readonly tokenizer: TokenizerType;
 
 	public readonly name = this._modelInfo.name;
 	public readonly version = this._modelInfo.version;
 	public readonly family = this._modelInfo.capabilities.family;
+	public readonly tokenizer = this._modelInfo.capabilities.tokenizer;
 
 	constructor(
 		private _modelInfo: IEmbeddingModelInformation,
 		@ITokenizerProvider private readonly _tokenizerProvider: ITokenizerProvider
 	) {
-		let config = workspace.getConfiguration('github.copilot.embeddingModel');
-
-		this.tokenizer = config.get('tokenzier', this._modelInfo.capabilities.tokenizer);
-		this.maxBatchSize = config.get('max_chunk_bacth', this._modelInfo.capabilities.limits?.max_inputs ?? 256);
-		this.modelMaxPromptTokens = config.get('max_chunk_tokens', 250);
-		GlobalChunkingDefaults.maxTokenLength = config.get('max_chunk_tokens', 250);
-		GlobalChunkingDefaults.strategy = config.get('chunk_strategy', 'token');
+		this.maxBatchSize = this._modelInfo.capabilities.limits?.max_inputs ?? 256;
+		this.modelMaxPromptTokens = 8192;
+		GlobalChunkingDefaults.maxTokenLength = this._modelInfo.capabilities.limits?.max_token ?? 256;
+		GlobalChunkingDefaults.strategy = this._modelInfo.capabilities.chunk_strategy ?? 'token';
 	}
 
 	public acquireTokenizer(): ITokenizer {
@@ -39,6 +35,6 @@ export class EmbeddingEndpoint implements IEmbeddingsEndpoint {
 	}
 
 	public get urlOrRequestMetadata(): string | RequestMetadata {
-		return { type: RequestType.CAPIEmbeddings, modelId: LEGACY_EMBEDDING_MODEL_ID.TEXT3SMALL };
+		return { type: RequestType.CAPIEmbeddings, modelId: LEGACY_EMBEDDING_MODEL_ID.TEXT3SMALL, baseUrl: this._modelInfo.baseUrl, apiKey: this._modelInfo.apiKey, model: this._modelInfo.model };
 	}
 }

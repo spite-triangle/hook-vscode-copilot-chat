@@ -3,12 +3,48 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { PreToolUseHookInput } from '@anthropic-ai/claude-agent-sdk';
+import {
+	AgentInput,
+	AskUserQuestionInput,
+	BashInput,
+	FileEditInput,
+	FileReadInput,
+	FileWriteInput,
+	GlobInput,
+	GrepInput,
+	KillShellInput,
+	NotebookEditInput,
+	ExitPlanModeInput as SDKExitPlanModeInput,
+	TaskOutputInput,
+	TodoWriteInput,
+	WebFetchInput,
+	WebSearchInput,
+} from '@anthropic-ai/claude-agent-sdk/sdk-tools';
+import { URI } from '../../../../util/vs/base/common/uri';
+
+/**
+ * Extended ExitPlanModeInput that includes the plan property sent by the actual tool.
+ * The SDK type only has allowedPrompts, but the tool also sends plan.
+ */
+export interface ExitPlanModeInput extends SDKExitPlanModeInput {
+	readonly plan?: string;
+}
+
+/**
+ * EnterPlanMode tool input - empty as the tool takes no parameters
+ */
+export interface EnterPlanModeInput {
+	// EnterPlanMode takes no input parameters
+}
+
 export enum ClaudeToolNames {
 	Task = 'Task',
 	Bash = 'Bash',
 	Glob = 'Glob',
 	Grep = 'Grep',
 	LS = 'LS',
+	EnterPlanMode = 'EnterPlanMode',
 	ExitPlanMode = 'ExitPlanMode',
 	Read = 'Read',
 	Edit = 'Edit',
@@ -20,22 +56,54 @@ export enum ClaudeToolNames {
 	WebSearch = 'WebSearch',
 	BashOutput = 'BashOutput',
 	KillBash = 'KillBash',
+	AskUserQuestion = 'AskUserQuestion',
 }
 
-export interface ITodoWriteInput {
-	readonly todos: readonly {
-		readonly content: string;
-		readonly status: 'pending' | 'in_progress' | 'completed';
-		readonly activeForm: string;
-	}[];
+
+
+/**
+ * LS tool input - not defined in SDK
+ */
+export interface LSInput {
+	readonly path: string;
 }
 
-export interface IExitPlanModeInput {
-	readonly plan: string;
+/**
+ * Maps ClaudeToolNames to their SDK input types
+ */
+export interface ClaudeToolInputMap {
+	[ClaudeToolNames.Task]: AgentInput;
+	[ClaudeToolNames.Bash]: BashInput;
+	[ClaudeToolNames.Glob]: GlobInput;
+	[ClaudeToolNames.Grep]: GrepInput;
+	[ClaudeToolNames.LS]: LSInput;
+	[ClaudeToolNames.EnterPlanMode]: EnterPlanModeInput;
+	[ClaudeToolNames.ExitPlanMode]: ExitPlanModeInput;
+	[ClaudeToolNames.Read]: FileReadInput;
+	[ClaudeToolNames.Edit]: FileEditInput;
+	[ClaudeToolNames.MultiEdit]: FileEditInput;
+	[ClaudeToolNames.Write]: FileWriteInput;
+	[ClaudeToolNames.NotebookEdit]: NotebookEditInput;
+	[ClaudeToolNames.WebFetch]: WebFetchInput;
+	[ClaudeToolNames.TodoWrite]: TodoWriteInput;
+	[ClaudeToolNames.WebSearch]: WebSearchInput;
+	[ClaudeToolNames.BashOutput]: TaskOutputInput;
+	[ClaudeToolNames.KillBash]: KillShellInput;
+	[ClaudeToolNames.AskUserQuestion]: AskUserQuestionInput;
 }
 
-export interface ITaskToolInput {
-	readonly description: string;
-	readonly subagent_type: string;
-	readonly prompt: string;
+export const claudeEditTools: readonly string[] = [ClaudeToolNames.Edit, ClaudeToolNames.MultiEdit, ClaudeToolNames.Write, ClaudeToolNames.NotebookEdit];
+
+export function getAffectedUrisForEditTool(input: PreToolUseHookInput): URI[] {
+	switch (input.tool_name) {
+		case ClaudeToolNames.Edit:
+		case ClaudeToolNames.MultiEdit:
+			return [URI.file((input.tool_input as FileEditInput).file_path)];
+		case ClaudeToolNames.Write:
+			return [URI.file((input.tool_input as FileWriteInput).file_path)];
+		case ClaudeToolNames.NotebookEdit:
+			return [URI.file((input.tool_input as NotebookEditInput).notebook_path)];
+		default:
+			return [];
+	}
 }

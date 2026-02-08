@@ -143,6 +143,13 @@ const EXCLUDE_EXTENSIONS = new Set([
 	'jar', 'class', 'ear', 'war', // Java
 	'apk', 'dex', // Android
 	'phar', // PHP
+
+	// Certificates and private keys (security sensitive)
+	'pfx', 'p12', // PKCS#12 files
+	'pem', 'crt', 'cer', // Certificate files
+	'key', 'priv', // Private key files
+	'jks', 'keystore', // Java keystore files
+	'csr', // Certificate signing requests
 ]);
 
 const EXCLUDED_FOLDERS = [
@@ -210,7 +217,7 @@ export function shouldAlwaysIgnoreFile(resource: URI): boolean {
  *
  * Caller should also look at file content to make sure the file is not binary or copilot ignored.
  */
-function shouldPotentiallyIndexFile(accessor: ServicesAccessor, resource: URI): boolean {
+export function shouldPotentiallyIndexFile(accessor: ServicesAccessor, resource: URI): boolean {
 	if (shouldAlwaysIgnoreFile(resource)) {
 		return false;
 	}
@@ -700,7 +707,7 @@ export class WorkspaceFileIndex extends Disposable implements IWorkspaceFileInde
 	}
 
 	private getMaxFilesToIndex(): number {
-		return this._configurationService.getExperimentBasedConfig<number>(ConfigKey.Internal.WorkspaceMaxLocalIndexSize, this._expService);
+		return this._configurationService.getExperimentBasedConfig<number>(ConfigKey.Advanced.WorkspaceMaxLocalIndexSize, this._expService);
 	}
 
 	private async getWorkspaceFilesToIndex(maxResults: number, token: CancellationToken): Promise<Iterable<URI>> {

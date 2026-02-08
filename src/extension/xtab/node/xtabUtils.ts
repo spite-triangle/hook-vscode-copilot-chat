@@ -3,24 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IResponsePart } from '../../../platform/chat/common/chatMLFetcher';
+import { Raw } from '@vscode/prompt-tsx';
+import { toTextParts } from '../../../platform/chat/common/globalStringUtils';
 import { AsyncIterableObject } from '../../../util/vs/base/common/async';
 
 
-export function toLines(stream: AsyncIterableObject<IResponsePart>) {
+export function toLines(stream: AsyncIterableObject<{ delta: { text: string } }>) {
 	return new AsyncIterableObject<string>(async (emitter) => {
-		let buffer = '';
+		let buffer: string | null = null;
 
 		for await (const chunk of stream) {
+			buffer ??= '';
 			buffer += chunk.delta.text;
 
-			const parts = buffer.split(/\r?\n/);
+			const parts: string[] = buffer.split(/\r?\n/);
 			buffer = parts.pop() ?? '';
 
 			emitter.emitMany(parts);
 		}
 
-		if (buffer) {
+		if (buffer !== null) {
 			emitter.emitOne(buffer);
 		}
 	});
@@ -59,4 +61,22 @@ export function linesWithBackticksRemoved(linesStream: AsyncIterableObject<strin
 
 		// ignore bufferedLine
 	});
+}
+
+export function constructMessages({ systemMsg, userMsg }: { systemMsg: string; userMsg: string }): Raw.ChatMessage[] {
+	return [
+		{
+			role: Raw.ChatRole.System,
+			content: toTextParts(systemMsg)
+		},
+		{
+			role: Raw.ChatRole.User,
+			content: toTextParts(userMsg)
+		}
+	] satisfies Raw.ChatMessage[];
+}
+
+export function charCount(messages: Raw.ChatMessage[]): number {
+	const promptCharCount = messages.reduce((total, msg) => total + msg.content.reduce((subtotal, part) => subtotal + (part.type === Raw.ChatCompletionContentPartKind.Text ? part.text.length : 0), 0), 0);
+	return promptCharCount;
 }

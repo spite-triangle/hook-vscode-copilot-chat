@@ -64,11 +64,10 @@ suite('Intent Streaming', function () {
 			if (value instanceof ChatResponseTextEditPart) {
 				values.push(...value.edits);
 			}
-		}, () => { });
+		}, () => { }, undefined, undefined, undefined, () => Promise.resolve(undefined));
 		const values: TextEdit[] = [];
 
 		const part: IResponsePart = {
-			text: 'What can be done',
 			delta: {
 				text: 'What can be done'
 			}

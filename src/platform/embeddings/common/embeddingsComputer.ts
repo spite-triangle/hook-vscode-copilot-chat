@@ -77,6 +77,23 @@ export interface Embedding {
 	readonly value: EmbeddingVector;
 }
 
+export function isValidEmbedding(value: unknown): value is Embedding {
+	if (typeof value !== 'object' || value === null) {
+		return false;
+	}
+
+	const asEmbedding = value as Embedding;
+	if (!asEmbedding.type) {
+		return false;
+	}
+
+	if (!Array.isArray(asEmbedding.value) || asEmbedding.value.length === 0) {
+		return false;
+	}
+
+	return true;
+}
+
 export interface Embeddings {
 	readonly type: EmbeddingType;
 	readonly values: readonly Embedding[];
@@ -89,8 +106,10 @@ export interface EmbeddingDistance {
 
 export const IEmbeddingsComputer = createServiceIdentifier<IEmbeddingsComputer>('IEmbeddingsComputer');
 
+export type EmbeddingInputType = 'document' | 'query';
+
 export type ComputeEmbeddingsOptions = {
-	readonly inputType?: 'document' | 'query';
+	readonly inputType?: EmbeddingInputType;
 };
 
 export interface IEmbeddingsComputer {
