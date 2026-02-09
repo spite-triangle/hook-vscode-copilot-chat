@@ -101,6 +101,12 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 			this._completionsFamilyMap.clear();
 			this._lastFetchTime = 0;
 		}));
+
+		this._register(workspace.onDidChangeConfiguration(async e => {
+			if (e.affectsConfiguration('github.copilot.hackModels')) {
+				await this._fetchModels(true);
+			}
+		}));
 	}
 
 	public async getAllCompletionModels(forceRefresh: boolean): Promise<ICompletionModelInformation[]> {
@@ -302,7 +308,7 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 		if (this._familyMap.size === 0) {
 			return true;
 		}
-		const tenMinutes = 30 * 1000; // 30 seconds in milliseconds
+		const tenMinutes = 10 * 60 * 1000; // 10 minutes in milliseconds
 		const now = Date.now();
 
 		if (!this._lastFetchTime) {

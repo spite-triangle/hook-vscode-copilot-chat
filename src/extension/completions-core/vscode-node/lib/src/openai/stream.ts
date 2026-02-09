@@ -624,6 +624,8 @@ export class SSEProcessor {
 const formatString = (str: string) => {
 	str = str.replace(/\s*<think>[\s\S]*?<\/think>\s*?\n*/g, "")
 	str = str.replace(/\s*<think>[\s\S]*?<\/thi[\s\S]*?\n*/g, "");
+	str = str.replace(/<think>/g, "");
+	str = str.replace(/<\/think>/g, "");
 	str = str.replace(/\s*```[a-zA-Z0-9_\-]*\n?/, "")
 	str = str.replace(/```\s*$/, "")
 	return str;
@@ -636,7 +638,9 @@ export function prepareSolutionForReturn(
 ): APIChoice {
 	const logTarget = accessor.get(ICompletionsLogTargetService);
 
-	let completionText = formatString(c.solution.text.join(''));
+	const completion_content = c.solution.text.join('');
+	streamChoicesLogger.info(logTarget, completion_content);
+	let completionText = formatString(completion_content);
 
 	let blockFinished = false;
 	if (c.finishOffset !== undefined) {

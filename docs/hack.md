@@ -7,6 +7,13 @@
 - 修改字段 ： 'contributes.configuration.properties'
 
 ```json
+"github.copilot.completionPrompt": {
+	"type": "object",
+	"properties": {
+		"next": {"type":"string" },
+		"inline": {"type": "string"}
+	}
+},
 "github.copilot.hackModels": {
 	"type": "object",
 	"default": {},
@@ -393,6 +400,52 @@
 
 # 登陆验证
 
+## 加快激活
+
+- 文件 `src\extension\conversation\vscode-node\conversationFeature.ts`
+- 修改内容
+
+```ts
+	constructor(
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@ILogService private readonly logService: ILogService,
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IConversationOptions private conversationOptions: IConversationOptions,
+		@IChatAgentService private chatAgentService: IChatAgentService,
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
+		@ICombinedEmbeddingIndex private readonly embeddingIndex: ICombinedEmbeddingIndex,
+		@IDevContainerConfigurationService private readonly devContainerConfigurationService: IDevContainerConfigurationService,
+		@IGitCommitMessageService private readonly gitCommitMessageService: IGitCommitMessageService,
+		@IMergeConflictService private readonly mergeConflictService: IMergeConflictService,
+		@ILinkifyService private readonly linkifyService: ILinkifyService,
+		@IVSCodeExtensionContext private readonly extensionContext: IVSCodeExtensionContext,
+		@INewWorkspacePreviewContentManager private readonly newWorkspacePreviewContentManager: INewWorkspacePreviewContentManager,
+		@ISettingsEditorSearchService private readonly settingsEditorSearchService: ISettingsEditorSearchService,
+	) {
+		this._enabled = false;
+		this._activated = false;
+
+		// Register Copilot token listener
+		this.registerCopilotTokenListener();
+
+		const activationBlockerDeferred = new DeferredPromise<void>();
+		this.activationBlocker = activationBlockerDeferred.p;
+
+		this.activated = true;
+		activationBlockerDeferred.complete();
+
+		if (authenticationService.copilotToken) {
+			this.logService.debug(`ConversationFeature: Copilot token already available`);
+		}
+
+		this._disposables.add(authenticationService.onDidAuthenticationChange(async () => {
+			const hasSession = !!authenticationService.copilotToken;
+			this.logService.debug(`ConversationFeature: onDidAuthenticationChange has token: ${hasSession}`);
+		}));
+	}
+```
+
 ## session
 
 - 文件： `src\platform\authentication\vscode-node\session.ts`
@@ -577,21 +630,34 @@
 - 修改后
 
 	```ts
-	// NOTE - 需要 Ai 实现 this._onDidModelRefresh.fire() 触发 src\extension\conversation\vscode-node\languageModelAccess.ts 中的 this._onDidChange.fire() ，实现 language Models 界面刷新
+	constructor(
+		private readonly collectFetcherTelemetry: ((accessor: ServicesAccessor, error: any) => void) | undefined,
+		protected readonly _isModelLab: boolean,
+		@IFetcherService private readonly _fetcher: IFetcherService,
+		@IRequestLogger private readonly _requestLogger: IRequestLogger,
+		@ICAPIClientService private readonly _capiClientService: ICAPIClientService,
+		@IConfigurationService private readonly _configService: IConfigurationService,
+		@IExperimentationService private readonly _expService: IExperimentationService,
+		@IEnvService private readonly _envService: IEnvService,
+		@IAuthenticationService private readonly _authService: IAuthenticationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ILogService private readonly _logService: ILogService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+	) {
+		super();
+		this._register(this._authService.onDidAuthenticationChange(() => {
+			// Auth changed so next fetch should be forced to get a new list
+			this._familyMap.clear();
+			this._completionsFamilyMap.clear();
+			this._lastFetchTime = 0;
+		}));
 
-	private _shouldRefreshModels(): boolean {
-		if (this._familyMap.size === 0) {
-			return true;
-		}
-		const tenMinutes = 30 * 1000; // 30 seconds in milliseconds
-		const now = Date.now();
-
-		if (!this._lastFetchTime) {
-			return true; // If there's no last fetch time, we should refresh
-		}
-
-		const timeSinceLastFetch = now - this._lastFetchTime;
-		return timeSinceLastFetch > tenMinutes;
+		// NOTE - 增加配置监控器
+		this._register(workspace.onDidChangeConfiguration(async e => {
+			if (e.affectsConfiguration('github.copilot.hackModels')) {
+				await this._fetchModels(true);
+			}
+		}));
 	}
 
 	private async _fetchModels(force?: boolean): Promise<void> {
@@ -822,6 +888,9 @@
 	}
 	```
 
+## 模型界面刷新
+
+需要 Ai 实现  `src\platform\endpoint\node\modelMetadataFetcher.ts` 中的 `this._onDidModelRefresh.fire()` 触发 `src\extension\conversation\vscode-node\languageModelAccess.ts` 中的 `this._onDidChange.fire()` ，实现 language Models 界面刷新
 
 ## autoMode
 
@@ -1319,10 +1388,74 @@
 					{
 						role: Raw.ChatRole.User,
 						content: toTextParts(`
-	1. Re-evaluate and improve the answer.
-	2. Do not completion or delete the content between  \`<|code_to_edit|>\` and \`<|/code_to_edit|>\`, just provide the next edit.
-	3. Do not output any additional content and existing content between \`<|area_around_code_to_edit|>\` and  \`<|/area_around_code_to_edit|>\`
-						`)
+	对答案内容进行优化修正
+	1. 修正语法、语义错误，使答案更加符合 area_around_code_to_edit 的语境逻辑
+	2. 无必要优化建议，则直接返回答案
+	3. 残缺的函数、类、代码块不要补全，保持原样返回，例如
+		输入
+		\`\`\`
+		<|area_around_code_to_edit|>
+			/*something*/  // pos-1
+		function(){        // pos-2
+		<|code_to_edit|>
+			/*something*/
+		};
+		/*something*/
+		class Demo{
+			/*something*/
+		<|/code_to_edit|>
+			/*somthing*/    // pos-3
+		};                  // pos-4
+		<|/area_around_code_to_edit|>
+		\`\`\`
+		得到答案
+		\`\`\`
+			/*modify*/
+		};
+		/*modify*/
+		class Demo{
+			/*modify*/
+		\`\`\`
+		修正答案时，不要重复返回或补全 pos-1, pos-2, pos-3, pos-4 的内容，返回格式如下
+		\`\`\`
+			/*improve modify*/
+		};
+		/* improve modify*/
+		class Demo{
+			/*improve modify*/
+		\`\`\`
+  4. 残缺的函数、类、代码块不要删除，保持原样返回，例如
+      输入
+      \`\`\`
+      <|area_around_code_to_edit|>
+          /*something*/
+      function(){
+          /*something*/
+      <|code_to_edit|>
+      };
+      /*something*/
+      class Demo{
+      <|/code_to_edit|>
+          /*something*/
+      };
+      <|/area_around_code_to_edit|>
+      \`\`\`
+      得到答案
+      \`\`\`
+      };				// pos-1
+  	/*modify*/
+      class Demo{		// pos-2
+      \`\`\`
+      虽然 pos-1, pos-2 在局部是语法错误，但是放入 area_around_code_to_edit 中，整体是语法正确的，所以不要删除. 应当返回
+      \`\`\`
+      };				// pos-1
+  	/*improve modify*/
+      class Demo{		// pos-2
+      \`\`\`
+  5. 返回格式维持不变，不要添加额外的换行符
+
+	${extra_prompt ? "额外要求\n" + extra_prompt : ""}
+	`)
 					}
 				)
 			}
@@ -1476,44 +1609,66 @@ async function fetchWithInstrumentation(
 		if (!req.extra) {
 			req.extra = {};
 		}
+		const content = req.messages && req.messages.length > 0 ? req.messages[0].content : "";
+
 		req.messages = [
 			{
 				role: "system",
-				content: `你是一名行内补全助手, 需要分析用户正在编写文本的上下文, 补全光标所在行的内容。`
+				content: `你是一名行内补全助手, 需要分析用户正在编写内容的上下文, 在光标后添加建议补全内容。`
 			},
 			{
 				role: "user",
 				content: `
 /no_think
 
-你需要理解正在编辑文本的上文 <|prompt|> 与下文 <|suffix|> 内容，然后在光标处 <|cursor|> 补全内容。
-
-- \`<|prompt|><|/prompt|>\` : 标记编辑文本的上文内容
-- \`<|suffix|><|/suffix|>\` : 标记编辑文本的下文内容
-- \`<|cursor|>\` : 光标所在位置, 需要你在此处输出补全内容
-
-正在编辑的文档内容
-
+你应当首先分析光标 <|cursor|> 的上文与下文的内容，然后在光标 <|cursor|> 后添加补全内容，例如，输入内容为
 \`\`\`
-<|prompt|>${request.prompt}<|/prompt|><|cursor|>\n<|suffix|>${request.suffix}<|/suffix|>
+# a 非 0 , 则加 1; 否则, 返回 a
+func(int a):
+    if<|cursor|>
+    return a + 1;
+\`\`\`
+返回的补全结果为
+\`\`\`
+(a != 0){
+        return a; 	// pos-1
+    }				// pos-2
 \`\`\`
 
-补全内容输出要求
-
-- 确保补全内容插入上下文间, 文档整体语法正确，变量命名与编码风格尽量与上下文保持一致
-- 无插入内容，则输出空字符串
-- 补全内容最小化修改，避免插入内容与上下文内容重复，
-- 需要换行时，缩进空格数: ${req.extra.next_indent ?? 0}
-- 只输出纯 ${req.extra.language} 语言片段，不要输出无关内容，不要输出 markdown 代码块标识符号
+返回结果要求：
+1. 不要返回已经有的内容，例如案例中
+    \`\`\`
+    # a 非 0 , 则加 1; 否则, 返回 a
+    func(int a):
+        if
+    \`\`\`
+    与
+    \`\`\`
+        return a + 1;
+    \`\`\`
+    上文与下文中存在的内容就不要返回
+2. 返回结果要与原内容文本格式保持一致，例如
+    \`\`\`
+    # a 非 0 , 则加 1; 否则, 返回 a
+    func(int a):
+        if
+    \`\`\`
+    中的 if 存在缩进，因此返回结果换行时也要缩进，如 pos-1、pos-2 所示
+3. 若补全的是代码，返回结果${req.code_annotations ? "需要" : "不需要"}包含注释
+${extra_prompt ? "额外要求\n" + extra_prompt : ""}
+生成补全建议时，可参考的内容
+\`\`\`
+${context}
+\`\`\`
+正在编辑的文档如下：
+\`\`\`${req.extra.language ?? "txt"}
+${req.prompt ?? ""}<|cursor|>
+${req.suffix ?? ""}
+\`\`\`
 `
 			}
 		]
-
-		delete req.code_annotations;
-		delete req.prompt;
-		delete req.suffix;
-		delete req.extra;
-	}
+	};
 
 	// The request ID we are passed in is sent in the request to the proxy, and included in our pre-request telemetry.
 	// We hope (but do not rely on) that the model will use the same ID in the response, allowing us to correlate
@@ -1614,6 +1769,8 @@ async function fetchWithInstrumentation(
 }
 ```
 
+## 行内补全结果修正
+
 - 文档： `src\extension\completions-core\vscode-node\lib\src\openai\stream.ts`
 
 - 修改
@@ -1623,6 +1780,8 @@ async function fetchWithInstrumentation(
 const formatString = (str: string) => {
 	str = str.replace(/\s*<think>[\s\S]*?<\/think>\s*?\n*/g, "")
 	str = str.replace(/\s*<think>[\s\S]*?<\/thi[\s\S]*?\n*/g, "");
+	str = str.replace(/<think>/g, "");
+	str = str.replace(/<\/think>/g, "");
 	str = str.replace(/\s*```[a-zA-Z0-9_\-]*\n?/, "")
 	str = str.replace(/```\s*$/, "")
 	return str;
@@ -1635,7 +1794,9 @@ export function prepareSolutionForReturn(
 ): APIChoice {
 	const logTarget = accessor.get(ICompletionsLogTargetService);
 
-	let completionText = formatString(c.solution.text.join(''));
+	const completion_content = c.solution.text.join('');
+	streamChoicesLogger.info(logTarget, completion_content);
+	let completionText = formatString(completion_content);
 
 	let blockFinished = false;
 	if (c.finishOffset !== undefined) {

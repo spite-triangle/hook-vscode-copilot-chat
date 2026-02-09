@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Raw } from '@vscode/prompt-tsx';
+import { workspace } from 'vscode';
 import { FetchStreamSource } from '../../../platform/chat/common/chatMLFetcher';
 import { ChatFetchError, ChatFetchResponseType, ChatLocation } from '../../../platform/chat/common/commonTypes';
 import { ConfigKey, IConfigurationService, XTabProviderId } from '../../../platform/configuration/common/configurationService';
@@ -514,6 +515,8 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		]
 
 		if (typeof prediction?.content === "string" && prediction.content.length > 0) {
+			const extra_prompt = workspace.getConfiguration("github.copilot.completionPrompt").get("next") as string | undefined;
+
 			messages.push(
 				{
 					role: Raw.ChatRole.Assistant,
@@ -524,10 +527,77 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				{
 					role: Raw.ChatRole.User,
 					content: toTextParts(`
-1. Re-evaluate and improve the answer.
-2. Do not completion or delete the content between  \`<|code_to_edit|>\` and \`<|/code_to_edit|>\`, just provide the next edit.
-3. Do not output any additional content and existing content between \`<|area_around_code_to_edit|>\` and  \`<|/area_around_code_to_edit|>\`
-					`)
+对答案内容进行优化修正
+1. 修正语法、语义错误，使答案更加符合 area_around_code_to_edit 的语境逻辑
+2. 无必要优化建议，则直接返回答案
+3. 残缺的函数、类、代码块不要补全，保持原样返回，例如
+    输入
+    \`\`\`
+    <|area_around_code_to_edit|>
+        /*something*/  // pos-1
+    function(){        // pos-2
+    <|code_to_edit|>
+        /*something*/
+    };
+	/*something*/
+    class Demo{
+	    /*something*/
+    <|/code_to_edit|>
+        /*somthing*/    // pos-3
+    };                  // pos-4
+    <|/area_around_code_to_edit|>
+    \`\`\`
+    得到答案
+    \`\`\`
+        /*modify*/
+    };
+	/*modify*/
+    class Demo{
+        /*modify*/
+    \`\`\`
+    修正答案时，不要重复返回或补全 pos-1, pos-2, pos-3, pos-4 的内容，返回格式如下
+    \`\`\`
+        /*improve modify*/
+    };
+	/* improve modify*/
+    class Demo{
+        /*improve modify*/
+    \`\`\`
+4. 答案中未被修改的部分，应当保持原样返回，例如
+    输入
+    \`\`\`
+    <|area_around_code_to_edit|>
+        /*something*/
+    class A{
+        /*something*/
+    <|code_to_edit|>
+    };				   // pos-1
+    /*something*/
+    function B(){      // pos-2
+        /*something*/  // pos-3
+    <|/code_to_edit|>
+        /*something*/
+    };
+    <|/area_around_code_to_edit|>
+    \`\`\`
+    得到答案
+    \`\`\`
+    };				    // pos-1
+	/*modify*/
+     function B(){      // pos-2
+        /*something*/   // pos-3
+    \`\`\`
+    若 pos-1, pos-2, pos-3 无修改，则不能从答案中删除，保持原样全部返回
+    \`\`\`
+    };				    // pos-1
+	/*improve modify*/
+     function B(){      // pos-2
+        /*something*/   // pos-3
+    \`\`\`
+5. 返回格式维持不变，不要添加额外的换行符
+
+${extra_prompt ? "额外要求\n" + extra_prompt : ""}
+`)
 				}
 			)
 		}

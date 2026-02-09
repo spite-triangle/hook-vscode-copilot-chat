@@ -2,7 +2,7 @@
 	"name": "copilot-chat",
 	"displayName": "GitHub Copilot Chat",
 	"description": "AI chat features powered by Copilot",
-	"version": "0.37.260208",
+	"version": "0.37.260209",
 	"build": "1",
 	"internalAIKey": "1058ec22-3c95-4951-8443-f26c1f325911",
 	"completionsCoreVersion": "1.378.1799",
@@ -2919,6 +2919,13 @@
 						"type": "string",
 						"default": "",
 						"markdownDescription": "The currently selected completion model ID. To select from a list of available models, use the __\"Change Completions Model\"__ command or open the model picker (from the Copilot menu in the VS Code title bar, select __\"Configure Code Completions\"__ then __\"Change Completions Model\"__. The value must be a valid model ID. An empty value indicates that the default model will be used."
+					},
+					"github.copilot.completionPrompt": {
+						"type": "object",
+						"properties": {
+							"next": {"type":"string" },
+							"inline": {"type": "string"}
+						}
 					},
 					"github.copilot.hackModels": {
 						"type": "object",

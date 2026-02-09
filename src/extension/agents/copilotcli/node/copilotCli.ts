@@ -158,8 +158,9 @@ export class CopilotCLIModels implements ICopilotCLIModels {
 	private async _getAvailableModels(): Promise<CopilotCLIModelInfo[]> {
 		const [{ getAvailableModels }, authInfo] = await Promise.all([this.copilotCLISDK.getPackage(), this.copilotCLISDK.getAuthInfo()]);
 		try {
-			const models = await getAvailableModels(authInfo);
-			return models.map(model => ({ id: model.id, name: model.name, multiplier: model.billing?.multiplier }));
+			// const models = await getAvailableModels(authInfo);
+			// return models.map(model => ({ id: model.id, name: model.name, multiplier: model.billing?.multiplier }));
+			return [];
 		} catch (ex) {
 			this.logService.error(`[CopilotCLISession] Failed to fetch models`, ex);
 			return [];

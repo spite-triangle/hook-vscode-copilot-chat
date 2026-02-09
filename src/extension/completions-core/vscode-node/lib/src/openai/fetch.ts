@@ -394,7 +394,6 @@ async function fetchWithInstrumentation(
 	if (mode === "code") {
 		uri += "/completions";
 		delete req.code_annotations;
-		delete req.suffix;
 		delete req.extra;
 	} else {
 		uri += "/chat/completions";
@@ -403,35 +402,65 @@ async function fetchWithInstrumentation(
 		if (!req.extra) {
 			req.extra = {};
 		}
+
+		const extra_prompt = workspace.getConfiguration("github.copilot.completionPrompt").get("inline") as string | undefined;
+
+		const context = req.extra.context ? req.extra.context.join('\n') : "";
+
 		req.messages = [
 			{
 				role: "system",
-				content: `你是一名行内补全助手, 需要分析用户正在编写文本的上下文, 补全光标所在行的内容。`
+				content: `你是一名行内补全助手, 需要分析用户正在编写内容的上下文, 在光标后添加建议补全内容。`
 			},
 			{
 				role: "user",
 				content: `
 /no_think
 
-你需要理解正在编辑文本的上文 <|prompt|> 与下文 <|suffix|> 内容，然后在光标处 <|cursor|> 补全内容。
-
-- \`<|prompt|><|/prompt|>\` : 标记编辑文本的上文内容
-- \`<|suffix|><|/suffix|>\` : 标记编辑文本的下文内容
-- \`<|cursor|>\` : 光标所在位置, 需要你在此处输出补全内容
-
-正在编辑的文档内容
-
+你应当首先分析光标 <|cursor|> 的上文与下文的内容，然后在光标 <|cursor|> 后添加补全内容，例如，输入内容为
 \`\`\`
-<|prompt|>${request.prompt}<|/prompt|><|cursor|>\n<|suffix|>${request.suffix}<|/suffix|>
+# a 非 0 , 则加 1; 否则, 返回 a
+func(int a):
+    if<|cursor|>
+    return a + 1;
+\`\`\`
+返回的补全结果为
+\`\`\`
+(a != 0){
+        return a; 	// pos-1
+    }				// pos-2
 \`\`\`
 
-补全内容输出要求
-
-- 确保补全内容插入上下文间, 文档整体语法正确，变量命名与编码风格尽量与上下文保持一致
-- 无插入内容，则输出空字符串
-- 补全内容最小化修改，避免插入内容与上下文内容重复，
-- 需要换行时，缩进空格数: ${req.extra.next_indent ?? 0}
-- 只输出纯 ${req.extra.language} 语言片段，不要输出无关内容，不要输出 markdown 代码块标识符号
+返回结果要求：
+1. 不要返回已经有的内容，例如案例中
+    \`\`\`
+    # a 非 0 , 则加 1; 否则, 返回 a
+    func(int a):
+        if
+    \`\`\`
+    与
+    \`\`\`
+        return a + 1;
+    \`\`\`
+    上文与下文中存在的内容就不要返回
+2. 返回结果要与原内容文本格式保持一致，例如
+    \`\`\`
+    # a 非 0 , 则加 1; 否则, 返回 a
+    func(int a):
+        if
+    \`\`\`
+    中的 if 存在缩进，因此返回结果换行时也要缩进，如 pos-1、pos-2 所示
+3. 若补全的是代码，返回结果${req.code_annotations ? "需要" : "不需要"}包含注释
+${extra_prompt ? "额外要求\n" + extra_prompt : ""}
+生成补全建议时，可参考的内容
+\`\`\`
+${context}
+\`\`\`
+正在编辑的文档如下：
+\`\`\`${req.extra.language ?? "txt"}
+${req.prompt ?? ""}<|cursor|>
+${req.suffix ?? ""}
+\`\`\`
 `
 			}
 		]
@@ -440,7 +469,7 @@ async function fetchWithInstrumentation(
 		delete req.prompt;
 		delete req.suffix;
 		delete req.extra;
-	}
+	};
 
 	// The request ID we are passed in is sent in the request to the proxy, and included in our pre-request telemetry.
 	// We hope (but do not rely on) that the model will use the same ID in the response, allowing us to correlate
