@@ -1713,17 +1713,44 @@ export class EmbeddingEndpoint implements IEmbeddingsEndpoint {
 - 修改内容
 
 ```ts
-private async getAllAvailableTypes(silent: boolean): Promise<GetAvailableTypesResult> {
-	// NOTE - 写死
-	this._cached = (async () => {
-		const primary: EmbeddingType[] = [];
-		const deprecated: EmbeddingType[] = [];
-		primary.push(new EmbeddingType('text-embedding-3-small-512'));
-		return Result.ok({ primary, deprecated });
-	})();
+	constructor(
+		@ILogService private readonly _logService: ILogService,
+		@IAuthenticationService private readonly _authService: IAuthenticationService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@ICAPIClientService private readonly _capiClientService: ICAPIClientService,
+		@IEnvService private readonly _envService: IEnvService,
+		@IFetcherService private readonly _fetcherService: IFetcherService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IExperimentationService private readonly _experimentationService: IExperimentationService,
+	) {
+		// this._cached = this._authService.getGitHubSession('any', { silent: true }).then(session => {
+		// 	if (!session) {
+		// 		return Result.error<GetAvailableTypesError>({ type: 'noSession' });
+		// 	}
 
-	return this._cached;
-}
+		// 	return this.doGetAvailableTypes(session.accessToken);
+		// });
+
+		this._cached = (async () => {
+			const primary: EmbeddingType[] = [];
+			const deprecated: EmbeddingType[] = [];
+			primary.push(new EmbeddingType('text-embedding-3-small-512'));
+			return Result.ok({ primary, deprecated });
+		})();
+	}
+
+
+	private async getAllAvailableTypes(silent: boolean): Promise<GetAvailableTypesResult> {
+		// NOTE - 写死
+		this._cached = (async () => {
+			const primary: EmbeddingType[] = [];
+			const deprecated: EmbeddingType[] = [];
+			primary.push(new EmbeddingType('text-embedding-3-small-512'));
+			return Result.ok({ primary, deprecated });
+		})();
+
+		return this._cached;
+	}
 ```
 
 ## 远程 embeddings 获取

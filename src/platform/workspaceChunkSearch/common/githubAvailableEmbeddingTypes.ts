@@ -65,13 +65,20 @@ export class GithubAvailableEmbeddingTypesService implements IGithubAvailableEmb
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IExperimentationService private readonly _experimentationService: IExperimentationService,
 	) {
-		this._cached = this._authService.getGitHubSession('any', { silent: true }).then(session => {
-			if (!session) {
-				return Result.error<GetAvailableTypesError>({ type: 'noSession' });
-			}
+		// this._cached = this._authService.getGitHubSession('any', { silent: true }).then(session => {
+		// 	if (!session) {
+		// 		return Result.error<GetAvailableTypesError>({ type: 'noSession' });
+		// 	}
 
-			return this.doGetAvailableTypes(session.accessToken);
-		});
+		// 	return this.doGetAvailableTypes(session.accessToken);
+		// });
+
+		this._cached = (async () => {
+			const primary: EmbeddingType[] = [];
+			const deprecated: EmbeddingType[] = [];
+			primary.push(new EmbeddingType('text-embedding-3-small-512'));
+			return Result.ok({ primary, deprecated });
+		})();
 	}
 
 	// private async getAllAvailableTypes(silent: boolean): Promise<GetAvailableTypesResult> {
