@@ -620,16 +620,6 @@ export class SSEProcessor {
 	}
 }
 
-// NOTE - 修正输出
-const formatString = (str: string) => {
-	str = str.replace(/\s*<think>[\s\S]*?<\/think>\s*?\n*/g, "")
-	str = str.replace(/\s*<think>[\s\S]*?<\/thi[\s\S]*?\n*/g, "");
-	str = str.replace(/<think>/g, "");
-	str = str.replace(/<\/think>/g, "");
-	str = str.replace(/\s*```[a-zA-Z0-9_\-]*\n?/, "")
-	str = str.replace(/```\s*$/, "")
-	return str;
-};
 
 export function prepareSolutionForReturn(
 	accessor: ServicesAccessor,
@@ -638,9 +628,8 @@ export function prepareSolutionForReturn(
 ): APIChoice {
 	const logTarget = accessor.get(ICompletionsLogTargetService);
 
-	const completion_content = c.solution.text.join('');
-	streamChoicesLogger.info(logTarget, completion_content);
-	let completionText = formatString(completion_content);
+	let completionText = c.solution.text.join('')
+	streamChoicesLogger.info(logTarget, completionText);
 
 	let blockFinished = false;
 	if (c.finishOffset !== undefined) {

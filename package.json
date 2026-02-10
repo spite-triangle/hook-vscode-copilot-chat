@@ -2,7 +2,7 @@
 	"name": "copilot-chat",
 	"displayName": "GitHub Copilot Chat",
 	"description": "AI chat features powered by Copilot",
-	"version": "0.37.260209",
+	"version": "0.37.260210",
 	"build": "1",
 	"internalAIKey": "1058ec22-3c95-4951-8443-f26c1f325911",
 	"completionsCoreVersion": "1.378.1799",
@@ -3015,6 +3015,7 @@
 									"baseUrl": { "type": "string" },
 									"apiKey": { "type": "string" },
 									"model": { "type": "string" },
+									"remove_prefix": {"type":"boolean", "default": false},
 									"mode": { "type": "string" , "enum": ["chat", "code"]},
 									"stop": {
 										"type": "array",
@@ -3051,6 +3052,7 @@
 									"model_picker_enabled": { "type": "boolean", "default": false },
 									"is_chat_default": { "type": "boolean" , "default": false},
 									"is_chat_fallback": { "type": "boolean" , "default": true},
+									"remove_code_mark": {"type": "boolean", "default": true},
 									"version": { "type": "string" , "default":"v1.0.0"},
 									"supported_endpoints": {
 										"type": "array",

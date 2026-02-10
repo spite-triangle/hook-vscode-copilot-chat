@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
+import { workspace } from 'vscode';
 import { CopilotNamedAnnotationList } from '../../../../../../platform/completions-core/common/openai/copilotAnnotations';
 import { ILogService, ILogger } from '../../../../../../platform/log/common/logService';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry';
@@ -556,7 +557,46 @@ export class GhostTextComputer {
 					telemetryData: mkBasicResultTelemetry(telemetryData),
 				};
 			}
+
+			const remove_prefix = workspace.getConfiguration("github.copilot.hackModels.inline").get("remove_prefix", false);
+
+			// NOTE - 修正输出
+			const formatString = (str: string) => {
+				str = str.replace(/\s*<think>[\s\S]*?<\/think>\s*?\n*/g, "")
+				str = str.replace(/\s*<think>[\s\S]*?<\/thi[\s\S]*?\n*/g, "");
+				str = str.replace(/\s*```[a-zA-Z0-9_\-]*\n?/, "")
+				str = str.replace(/```\s*$/, "")
+				return str;
+			};
+
+			// 被补全行的前缀
+			let linePrefix = '';
+			if (prefix && remove_prefix) {
+				for (let i = prefix.length - 1; i >= 0; i--) {
+					if (prefix[i] === '\n') {
+						break;
+					}
+					linePrefix = prefix[i] + linePrefix;
+				}
+			}
+
 			const [choicesArray, resultType] = choices;
+
+			for (let choice of choicesArray) {
+				choice.completionText = formatString(choice.completionText);
+
+				if (remove_prefix) {
+					for (let i = Math.min(choice.completionText.length, linePrefix.length); i > 0; i--) {
+						const subPrefix = linePrefix.substring(linePrefix.length - i);
+						const subCompletion = choice.completionText.substring(0, i);
+						if (subCompletion === subPrefix) {
+							choice.completionText = choice.completionText.substring(i);
+							break;
+						}
+					}
+				}
+			}
+
 			logger.trace(`Final choices: ${choicesArray.length} from ${resultTypeToString(resultType)}`);
 
 			const postProcessedChoicesArray = choicesArray
