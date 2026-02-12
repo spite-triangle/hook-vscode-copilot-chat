@@ -322,6 +322,16 @@
                     "model": { "type": "string" },
                     "is_chat_default": { "type": "boolean" , "default": false},
                     "is_chat_fallback": { "type": "boolean" , "default": false},
+                    "info_messages": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "code" : {"type" : "string" , "default": ""},
+                                "message": {"type": "string"}
+                            }
+                        }
+                    },
                     "version": { "type": "string" , "default":"v1.0.0"},
                     "supported_endpoints": {
                         "type": "array",

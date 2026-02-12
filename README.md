@@ -32,15 +32,17 @@
         "model": "gpt-3.5-turbo-1106",
     },
     "inline": {                     // 行内补全模型，建议使用响应快的模型
-        "mode": "chat",
+        "mode": "chat",             // chat: 使用 /v1/chat/completions 接口； code: 使用 /v1/completions 接口
         "apiKey": "",
         "baseUrl": "",
-        "model": ""
+        "model": "",
+        "remove_prefix": false,    // 当 inline suggestions 出现 , `if(|(a > 0)` 的情况，需要开启
     },
     "next": {                       // next 建议，建议使用响应快的模型
         "apiKey": "",
         "baseUrl": "",
         "model": "gpt-4.1-mini",
+        "remove_code_mark": false, // 当前 next suggestions 出现 '```cpp' 的情况需要开启
     },
     "embedding": {                  // 索引模型
         "apiKey": "",
