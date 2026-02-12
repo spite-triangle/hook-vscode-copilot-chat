@@ -2,7 +2,7 @@
 	"name": "copilot-chat",
 	"displayName": "GitHub Copilot Chat",
 	"description": "AI chat features powered by Copilot",
-	"version": "0.37.260212",
+	"version": "0.37.260213",
 	"build": "1",
 	"internalAIKey": "1058ec22-3c95-4951-8443-f26c1f325911",
 	"completionsCoreVersion": "1.378.1799",
@@ -2923,8 +2923,12 @@
 					"github.copilot.completionPrompt": {
 						"type": "object",
 						"properties": {
-							"next": {"type":"string" },
-							"inline": {"type": "string"}
+							"next": {
+								"type": "string"
+							},
+							"inline": {
+								"type": "string"
+							}
 						}
 					},
 					"github.copilot.hackModels": {
@@ -2935,12 +2939,27 @@
 								"type": "object",
 								"default": {},
 								"properties": {
-									"baseUrl": { "type": "string" },
-									"apiKey": { "type": "string" },
-									"model": { "type": "string" },
-									"model_picker_enabled": { "type": "boolean", "default": true },
-									"is_chat_default": { "type": "boolean" , "default": false},
-									"version": { "type": "string" , "default":"v1.0.0"},
+									"baseUrl": {
+										"type": "string"
+									},
+									"apiKey": {
+										"type": "string"
+									},
+									"model": {
+										"type": "string"
+									},
+									"model_picker_enabled": {
+										"type": "boolean",
+										"default": true
+									},
+									"is_chat_default": {
+										"type": "boolean",
+										"default": false
+									},
+									"version": {
+										"type": "string",
+										"default": "v1.0.0"
+									},
 									"supported_endpoints": {
 										"type": "array",
 										"default": [],
@@ -2968,18 +2987,38 @@
 											}
 										},
 										"properties": {
-											"type": { "const": "chat" },
-											"tokenizer": { "type": "string", "enum": ["cl100k_base", "o200k_base"], "default": "o200k_base" },
+											"type": {
+												"const": "chat"
+											},
+											"tokenizer": {
+												"type": "string",
+												"enum": [
+													"cl100k_base",
+													"o200k_base"
+												],
+												"default": "o200k_base"
+											},
 											"limits": {
 												"type": "object",
 												"properties": {
-													"max_prompt_tokens": { "type": "number", "default":  128000},
-													"max_output_tokens": { "type": "number" , "default": 64000},
-													"max_context_window_tokens": { "type": "number", "default":  264000},
+													"max_prompt_tokens": {
+														"type": "number",
+														"default": 128000
+													},
+													"max_output_tokens": {
+														"type": "number",
+														"default": 64000
+													},
+													"max_context_window_tokens": {
+														"type": "number",
+														"default": 264000
+													},
 													"vision": {
 														"type": "object",
 														"properties": {
-															"max_prompt_images": { "type": "number" }
+															"max_prompt_images": {
+																"type": "number"
+															}
 														}
 													}
 												},
@@ -2994,66 +3033,157 @@
 													"parallel_tool_calls": true
 												},
 												"properties": {
-													"parallel_tool_calls": { "type": "boolean", "default": true },
-													"tool_calls": { "type": "boolean" , "default": true},
-													"streaming": { "type": ["boolean","null"], "default": true },
-													"vision": { "type": "boolean", "default": false },
-													"prediction": { "type": "boolean", "default": false },
-													"thinking": { "type": "boolean", "default":false }
+													"parallel_tool_calls": {
+														"type": "boolean",
+														"default": true
+													},
+													"tool_calls": {
+														"type": "boolean",
+														"default": true
+													},
+													"streaming": {
+														"type": [
+															"boolean",
+															"null"
+														],
+														"default": true
+													},
+													"vision": {
+														"type": "boolean",
+														"default": false
+													},
+													"prediction": {
+														"type": "boolean",
+														"default": false
+													},
+													"thinking": {
+														"type": "boolean",
+														"default": false
+													}
 												}
 											}
 										}
 									}
-
 								},
-								"required": ["apiKey","baseUrl","model"],
+								"required": [
+									"apiKey",
+									"baseUrl",
+									"model"
+								],
 								"additionalProperties": false
 							},
 							"inline": {
 								"type": "object",
 								"properties": {
-									"baseUrl": { "type": "string" },
-									"apiKey": { "type": "string" },
-									"model": { "type": "string" },
-									"remove_prefix": {"type":"boolean", "default": false},
-									"mode": { "type": "string" , "enum": ["chat", "code"]},
+									"baseUrl": {
+										"type": "string"
+									},
+									"apiKey": {
+										"type": "string"
+									},
+									"model": {
+										"type": "string"
+									},
+									"remove_prefix": {
+										"type": "boolean",
+										"default": false
+									},
+									"mode": {
+										"type": "string",
+										"enum": [
+											"chat",
+											"code"
+										]
+									},
 									"stop": {
 										"type": "array",
-										"items": { "type": "string" }
+										"items": {
+											"type": "string"
+										}
 									},
-									"model_picker_enabled": { "type": "boolean", "default": false },
-									"is_chat_default": { "type": "boolean" , "default": false},
-									"is_chat_fallback": { "type": "boolean" , "default": true},
-									"version": { "type": "string" , "default":"v1.0.0"},
+									"model_picker_enabled": {
+										"type": "boolean",
+										"default": false
+									},
+									"is_chat_default": {
+										"type": "boolean",
+										"default": false
+									},
+									"is_chat_fallback": {
+										"type": "boolean",
+										"default": true
+									},
+									"version": {
+										"type": "string",
+										"default": "v1.0.0"
+									},
 									"capabilities": {
 										"type": "object",
 										"properties": {
-											"type": { "const": "completion" },
-											"tokenizer": { "type": "string", "enum": ["cl100k_base", "o200k_base"] , "default": "o200k_base"},
+											"type": {
+												"const": "completion"
+											},
+											"tokenizer": {
+												"type": "string",
+												"enum": [
+													"cl100k_base",
+													"o200k_base"
+												],
+												"default": "o200k_base"
+											},
 											"limits": {
 												"type": "object",
 												"properties": {
-													"interval": {"type": "number", "default": 300}
+													"interval": {
+														"type": "number",
+														"default": 300
+													}
 												}
 											}
 										},
 										"additionalProperties": false
 									}
 								},
-								"required": ["apiKey","baseUrl","model","mode"],
+								"required": [
+									"apiKey",
+									"baseUrl",
+									"model",
+									"mode"
+								],
 								"additionalProperties": false
 							},
 							"next": {
 								"type": "object",
 								"properties": {
-									"baseUrl": { "type": "string" },
-									"apiKey": { "type": "string" },
-									"model": { "type": "string" },
-									"model_picker_enabled": { "type": "boolean", "default": false },
-									"is_chat_default": { "type": "boolean" , "default": false},
-									"is_chat_fallback": { "type": "boolean" , "default": true},
-									"remove_code_mark": {"type": "boolean", "default": true},
-									"version": { "type": "string" , "default":"v1.0.0"},
+									"baseUrl": {
+										"type": "string"
+									},
+									"apiKey": {
+										"type": "string"
+									},
+									"model": {
+										"type": "string"
+									},
+									"model_picker_enabled": {
+										"type": "boolean",
+										"default": false
+									},
+									"is_chat_default": {
+										"type": "boolean",
+										"default": false
+									},
+									"is_chat_fallback": {
+										"type": "boolean",
+										"default": true
+									},
+									"remove_code_mark": {
+										"type": "boolean",
+										"default": true
+									},
+									"version": {
+										"type": "string",
+										"default": "v1.0.0"
+									},
 									"supported_endpoints": {
 										"type": "array",
 										"items": {
@@ -3080,122 +3210,38 @@
 											}
 										},
 										"properties": {
-											"type": { "const": "chat" },
-											"tokenizer": { "type": "string", "enum": ["cl100k_base", "o200k_base"], "default": "o200k_base" },
-											"limits": {
-												"type": "object",
-												"properties": {
-													"max_prompt_tokens": { "type": "number", "default":  128000},
-													"max_output_tokens": { "type": "number" , "default": 64000},
-													"max_context_window_tokens": { "type": "number", "default":  264000},
-													"vision": {
-														"type": "object",
-														"properties": {
-															"max_prompt_images": { "type": "number" }
-														}
-													}
-												},
-												"additionalProperties": false
+											"type": {
+												"const": "chat"
 											},
-											"supports": {
-												"type": "object",
-												"default":{
-													"streaming": true,
-													"thinking": false,
-													"vision": false,
-													"tool_calls": true,
-													"parallel_tool_calls": true
-												},
-												"properties": {
-													"parallel_tool_calls": { "type": "boolean", "default": true },
-													"tool_calls": { "type": "boolean" , "default": true},
-													"streaming": { "type": ["boolean","null"], "default": true },
-													"vision": { "type": "boolean", "default": false },
-													"prediction": { "type": "boolean", "default": false },
-													"thinking": { "type": "boolean", "default":false }
-												}
-											}
-										}
-									}
-								},
-								"required": ["apiKey","baseUrl","model"],
-								"additionalProperties": false
-							},
-							"embedding": {
-								"type": "object",
-								"properties": {
-									"baseUrl": { "type": "string" },
-									"apiKey": { "type": "string" },
-									"model": { "type": "string" },
-									"version": { "type": "string" , "default":"v1.0.0"},
-									"capabilities": {
-										"type": "object",
-										"properties": {
-											"type": { "const": "embeddings" },
-											"tokenizer": { "type": "string", "enum": ["cl100k_base", "o200k_base"] , "default": "o200k_base"},
-											"chunk_strategy": { "type": "string", "enum": ["token", "recursive"], "default":"token"},
+											"tokenizer": {
+												"type": "string",
+												"enum": [
+													"cl100k_base",
+													"o200k_base"
+												],
+												"default": "o200k_base"
+											},
 											"limits": {
 												"type": "object",
 												"properties": {
-													"max_inputs": { "type": "number" },
-													"max_token": { "type": "number" }
-												},
-												"additionalProperties": false
-											}
-										}
-									}
-								},
-								"required": ["apiKey","baseUrl","model"],
-								"additionalProperties": false
-							},
-							"fast": {
-								"type": "object",
-								"properties": {
-									"baseUrl": { "type": "string" },
-									"apiKey": { "type": "string" },
-									"model": { "type": "string" },
-									"model_picker_enabled": { "type": "boolean", "default": true },
-									"is_chat_default": { "type": "boolean" , "default": false},
-									"is_chat_fallback": { "type": "boolean" , "default": false},
-									"version": { "type": "string" , "default":"v1.0.0"},
-									"supported_endpoints": {
-										"type": "array",
-										"items": {
-											"type": "string",
-											"enum": [
-												"/chat/completions",
-												"/responses",
-												"/v1/messages"
-											]
-										}
-									},
-									"capabilities": {
-										"type": "object",
-										"default": {
-											"type": "chat",
-											"family": "custom",
-											"tokenizer": "o200k_base",
-											"supports": {
-												"streaming": true,
-												"thinking": false,
-												"vision": false,
-												"tool_calls": true,
-												"parallel_tool_calls": true
-											}
-										},
-										"properties": {
-											"type": { "const": "chat" },
-											"tokenizer": { "type": "string", "enum": ["cl100k_base", "o200k_base"], "default": "o200k_base" },
-											"limits": {
-												"type": "object",
-												"properties": {
-													"max_prompt_tokens": { "type": "number", "default":  128000},
-													"max_output_tokens": { "type": "number" , "default": 64000},
-													"max_context_window_tokens": { "type": "number", "default":  264000},
+													"max_prompt_tokens": {
+														"type": "number",
+														"default": 128000
+													},
+													"max_output_tokens": {
+														"type": "number",
+														"default": 64000
+													},
+													"max_context_window_tokens": {
+														"type": "number",
+														"default": 264000
+													},
 													"vision": {
 														"type": "object",
 														"properties": {
-															"max_prompt_images": { "type": "number" }
+															"max_prompt_images": {
+																"type": "number"
+															}
 														}
 													}
 												},
@@ -3211,38 +3257,283 @@
 													"parallel_tool_calls": true
 												},
 												"properties": {
-													"parallel_tool_calls": { "type": "boolean", "default": true },
-													"tool_calls": { "type": "boolean" , "default": true},
-													"streaming": { "type": ["boolean","null"], "default": true },
-													"vision": { "type": "boolean", "default": false },
-													"prediction": { "type": "boolean", "default": false },
-													"thinking": { "type": "boolean", "default":false }
+													"parallel_tool_calls": {
+														"type": "boolean",
+														"default": true
+													},
+													"tool_calls": {
+														"type": "boolean",
+														"default": true
+													},
+													"streaming": {
+														"type": [
+															"boolean",
+															"null"
+														],
+														"default": true
+													},
+													"vision": {
+														"type": "boolean",
+														"default": false
+													},
+													"prediction": {
+														"type": "boolean",
+														"default": false
+													},
+													"thinking": {
+														"type": "boolean",
+														"default": false
+													}
 												}
 											}
 										}
 									}
 								},
-								"required": ["apiKey","baseUrl","model"],
+								"required": [
+									"apiKey",
+									"baseUrl",
+									"model"
+								],
 								"additionalProperties": false
 							},
-							"extras":{
-								"type":"array",
+							"embedding": {
+								"type": "object",
+								"properties": {
+									"baseUrl": {
+										"type": "string"
+									},
+									"apiKey": {
+										"type": "string"
+									},
+									"model": {
+										"type": "string"
+									},
+									"version": {
+										"type": "string",
+										"default": "v1.0.0"
+									},
+									"capabilities": {
+										"type": "object",
+										"properties": {
+											"type": {
+												"const": "embeddings"
+											},
+											"tokenizer": {
+												"type": "string",
+												"enum": [
+													"cl100k_base",
+													"o200k_base"
+												],
+												"default": "o200k_base"
+											},
+											"chunk_strategy": {
+												"type": "string",
+												"enum": [
+													"token",
+													"recursive"
+												],
+												"default": "token"
+											},
+											"limits": {
+												"type": "object",
+												"properties": {
+													"max_inputs": {
+														"type": "number"
+													},
+													"max_token": {
+														"type": "number"
+													}
+												},
+												"additionalProperties": false
+											}
+										}
+									}
+								},
+								"required": [
+									"apiKey",
+									"baseUrl",
+									"model"
+								],
+								"additionalProperties": false
+							},
+							"fast": {
+								"type": "object",
+								"properties": {
+									"baseUrl": {
+										"type": "string"
+									},
+									"apiKey": {
+										"type": "string"
+									},
+									"model": {
+										"type": "string"
+									},
+									"model_picker_enabled": {
+										"type": "boolean",
+										"default": true
+									},
+									"is_chat_default": {
+										"type": "boolean",
+										"default": false
+									},
+									"is_chat_fallback": {
+										"type": "boolean",
+										"default": false
+									},
+									"version": {
+										"type": "string",
+										"default": "v1.0.0"
+									},
+									"supported_endpoints": {
+										"type": "array",
+										"items": {
+											"type": "string",
+											"enum": [
+												"/chat/completions",
+												"/responses",
+												"/v1/messages"
+											]
+										}
+									},
+									"capabilities": {
+										"type": "object",
+										"default": {
+											"type": "chat",
+											"family": "custom",
+											"tokenizer": "o200k_base",
+											"supports": {
+												"streaming": true,
+												"thinking": false,
+												"vision": false,
+												"tool_calls": true,
+												"parallel_tool_calls": true
+											}
+										},
+										"properties": {
+											"type": {
+												"const": "chat"
+											},
+											"tokenizer": {
+												"type": "string",
+												"enum": [
+													"cl100k_base",
+													"o200k_base"
+												],
+												"default": "o200k_base"
+											},
+											"limits": {
+												"type": "object",
+												"properties": {
+													"max_prompt_tokens": {
+														"type": "number",
+														"default": 128000
+													},
+													"max_output_tokens": {
+														"type": "number",
+														"default": 64000
+													},
+													"max_context_window_tokens": {
+														"type": "number",
+														"default": 264000
+													},
+													"vision": {
+														"type": "object",
+														"properties": {
+															"max_prompt_images": {
+																"type": "number"
+															}
+														}
+													}
+												},
+												"additionalProperties": false
+											},
+											"supports": {
+												"type": "object",
+												"default": {
+													"streaming": true,
+													"thinking": false,
+													"vision": false,
+													"tool_calls": true,
+													"parallel_tool_calls": true
+												},
+												"properties": {
+													"parallel_tool_calls": {
+														"type": "boolean",
+														"default": true
+													},
+													"tool_calls": {
+														"type": "boolean",
+														"default": true
+													},
+													"streaming": {
+														"type": [
+															"boolean",
+															"null"
+														],
+														"default": true
+													},
+													"vision": {
+														"type": "boolean",
+														"default": false
+													},
+													"prediction": {
+														"type": "boolean",
+														"default": false
+													},
+													"thinking": {
+														"type": "boolean",
+														"default": false
+													}
+												}
+											}
+										}
+									}
+								},
+								"required": [
+									"apiKey",
+									"baseUrl",
+									"model"
+								],
+								"additionalProperties": false
+							},
+							"extras": {
+								"type": "array",
 								"items": {
 									"type": "object",
 									"properties": {
-										"baseUrl": { "type": "string" },
-										"apiKey": { "type": "string" },
-										"model": { "type": "string" },
-										"is_chat_default": { "type": "boolean" , "default": false},
-										"is_chat_fallback": { "type": "boolean" , "default": false},
-										"version": { "type": "string" , "default":"v1.0.0"},
+										"baseUrl": {
+											"type": "string"
+										},
+										"apiKey": {
+											"type": "string"
+										},
+										"model": {
+											"type": "string"
+										},
+										"is_chat_default": {
+											"type": "boolean",
+											"default": false
+										},
+										"is_chat_fallback": {
+											"type": "boolean",
+											"default": false
+										},
+										"version": {
+											"type": "string",
+											"default": "v1.0.0"
+										},
 										"info_messages": {
 											"type": "array",
 											"items": {
 												"type": "object",
 												"properties": {
-													"code" : {"type" : "string" , "default": ""},
-													"message": {"type": "string"}
+													"code": {
+														"type": "string",
+														"default": ""
+													},
+													"message": {
+														"type": "string"
+													}
 												}
 											}
 										},
@@ -3272,19 +3563,42 @@
 												}
 											},
 											"properties": {
-												"type": { "const": "chat" },
-												"family": { "type": "string", "default": "custom"},
-												"tokenizer": { "type": "string", "enum": ["cl100k_base", "o200k_base"], "default": "o200k_base" },
+												"type": {
+													"const": "chat"
+												},
+												"family": {
+													"type": "string",
+													"default": "custom"
+												},
+												"tokenizer": {
+													"type": "string",
+													"enum": [
+														"cl100k_base",
+														"o200k_base"
+													],
+													"default": "o200k_base"
+												},
 												"limits": {
 													"type": "object",
 													"properties": {
-														"max_prompt_tokens": { "type": "number", "default":  128000},
-														"max_output_tokens": { "type": "number" , "default": 64000},
-														"max_context_window_tokens": { "type": "number", "default":  264000},
+														"max_prompt_tokens": {
+															"type": "number",
+															"default": 128000
+														},
+														"max_output_tokens": {
+															"type": "number",
+															"default": 64000
+														},
+														"max_context_window_tokens": {
+															"type": "number",
+															"default": 264000
+														},
 														"vision": {
 															"type": "object",
 															"properties": {
-																"max_prompt_images": { "type": "number" }
+																"max_prompt_images": {
+																	"type": "number"
+																}
 															}
 														}
 													},
@@ -3300,24 +3614,61 @@
 														"parallel_tool_calls": true
 													},
 													"properties": {
-														"parallel_tool_calls": { "type": "boolean", "default": true },
-														"tool_calls": { "type": "boolean" , "default": true},
-														"streaming": { "type": ["boolean","null"], "default": true },
-														"vision": { "type": "boolean", "default": false },
-														"prediction": { "type": "boolean", "default": false },
-														"thinking": { "type": "boolean", "default":false }
+														"parallel_tool_calls": {
+															"type": "boolean",
+															"default": true
+														},
+														"tool_calls": {
+															"type": "boolean",
+															"default": true
+														},
+														"streaming": {
+															"type": [
+																"boolean",
+																"null"
+															],
+															"default": true
+														},
+														"vision": {
+															"type": "boolean",
+															"default": false
+														},
+														"prediction": {
+															"type": "boolean",
+															"default": false
+														},
+														"thinking": {
+															"type": "boolean",
+															"default": false
+														}
 													}
 												}
 											},
-											"required": ["type","family","tokenizer","supports"]
+											"required": [
+												"type",
+												"family",
+												"tokenizer",
+												"supports"
+											]
 										}
 									},
-									"required": ["apiKey","baseUrl","model","capabilities"],
+									"required": [
+										"apiKey",
+										"baseUrl",
+										"model",
+										"capabilities"
+									],
 									"additionalProperties": false
 								}
 							}
 						},
-						"required": ["base","inline", "fast" , "next", "embedding"]
+						"required": [
+							"base",
+							"inline",
+							"fast",
+							"next",
+							"embedding"
+						]
 					}
 				}
 			},
@@ -3471,9 +3822,7 @@
 							"onExp"
 						]
 					},
-					"github.copilot.customModels":{
-
-					}
+					"github.copilot.customModels": {}
 				}
 			},
 			{
