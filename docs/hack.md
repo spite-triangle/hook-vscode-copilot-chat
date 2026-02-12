@@ -2468,3 +2468,226 @@ export class CachingChunkingEndpointClient implements IChunkingEndpointClient {
     }
 }
 ```
+
+# 终端
+
+## 命令行提示词调整
+
+> TODO
+> 需要在 (通用请求)[#通用请求] 中适配，保证 messages 要按照 system-user-assistant-user-assistant 的顺序请求
+
+- 位置： `src\extension\conversation\vscode-node\terminalFixGenerator.ts`
+- 修改
+
+```ts
+	async generateTerminalQuickFix(commandMatchResult: vscode.TerminalCommandMatchResult, token: CancellationToken): Promise<ICommandSuggestion[] | undefined> {
+		const unverifiedContextUris = await this._generateTerminalQuickFixFileContext(commandMatchResult, token);
+		if (!unverifiedContextUris || token.isCancellationRequested) {
+			return;
+		}
+
+		const verifiedContextUris: Uri[] = [];
+		const verifiedContextDirectoryUris: Uri[] = [];
+		const nonExistentContextUris: Uri[] = [];
+		for (const uri of unverifiedContextUris) {
+			try {
+				const exists = await vscode.workspace.fs.stat(uri);
+				// This does not support binary files
+				if (exists.type === vscode.FileType.File || exists.type === vscode.FileType.SymbolicLink) {
+					verifiedContextUris.push(uri);
+				} else if (exists.type === vscode.FileType.Directory) {
+					verifiedContextDirectoryUris.push(uri);
+				} else {
+					nonExistentContextUris.push(uri);
+				}
+			} catch {
+				nonExistentContextUris.push(uri);
+			}
+		}
+
+		const endpoint = await this._endpointProvider.getChatEndpoint('copilot-fast');
+
+		const promptRenderer = PromptRenderer.create(this._instantiationService, endpoint, TerminalQuickFixPrompt, {
+			commandLine: commandMatchResult.commandLine,
+			output: [],
+			verifiedContextUris,
+			verifiedContextDirectoryUris,
+			nonExistentContextUris,
+		});
+
+		const prompt = await promptRenderer.render(undefined, undefined);
+
+        // NOTE - 调整提示词顺序
+		const mapMessages = new Map<Raw.ChatRole, Raw.ChatMessage>();
+		for (var i = 0; i < prompt.messages.length; i++) {
+			const item = prompt.messages[i];
+
+			if (mapMessages.has(item.role) === false) {
+				mapMessages.set(item.role, item);
+			} else {
+				const origin = mapMessages.get(item.role)!;
+
+				const lastContent = origin.content.at(-1);
+				const nextContent = item.content.at(0);
+				if (lastContent && nextContent && lastContent.type === Raw.ChatCompletionContentPartKind.Text && nextContent.type === Raw.ChatCompletionContentPartKind.Text) {
+					lastContent.text = lastContent.text.trimEnd() + '\n' + nextContent.text;
+					origin.content = origin.content.concat(item.content.slice(1));
+				} else {
+					origin.content.push(toTextPart('\n'));
+					origin.content = origin.content.concat(item.content);
+				}
+			}
+		}
+
+		prompt.messages.splice(0, prompt.messages.length);
+		for (let item of mapMessages.values()) {
+			prompt.messages.push(item);
+		}
+
+		const fetchResult = await endpoint.makeChatRequest(
+			'terminalQuickFixGenerator',
+			prompt.messages,
+			undefined,
+			token,
+			ChatLocation.Other
+		);
+		this._logService.info('Terminal QuickFix FetchResult ' + fetchResult);
+		if (token.isCancellationRequested) {
+			return;
+		}
+		if (fetchResult.type !== 'success') {
+			throw new Error(vscode.l10n.t('Encountered an error while determining terminal quick fixes: {0}', fetchResult.type));
+		}
+		this._logService.debug('generalTerminalQuickFix fetchResult.value ' + fetchResult.value);
+
+		// Parse result json
+		const parsedResults: ICommandSuggestion[] = [];
+		try {
+			// The result may come in a md fenced code block
+			const codeblocks = extractCodeBlocks(fetchResult.value);
+			const json = JSON.parse(codeblocks.length > 0 ? codeblocks[0].code : fetchResult.value) as unknown;
+			if (json && Array.isArray(json)) {
+				for (const entry of (json as unknown[])) {
+					if (typeof entry === 'object' && entry) {
+						const command = 'command' in entry && typeof entry.command === 'string' ? entry.command : undefined;
+						const description = 'description' in entry && typeof entry.description === 'string' ? entry.description : undefined;
+						const relevance = 'relevance' in entry && typeof entry.relevance === 'string' && (entry.relevance === 'low' || entry.relevance === 'medium' || entry.relevance === 'high') ? entry.relevance : undefined;
+						if (command && description && relevance) {
+							parsedResults.push({
+								command,
+								description,
+								relevance: parseRelevance(relevance)
+							});
+						}
+					}
+				}
+			}
+		} catch (e) {
+			this._logService.error('Error parsing terminal quick fix results: ' + e);
+		}
+
+		return parsedResults;
+	}
+
+	private async _generateTerminalQuickFixFileContext(commandMatchResult: vscode.TerminalCommandMatchResult, token: CancellationToken) {
+		const endpoint = await this._endpointProvider.getChatEndpoint('copilot-fast');
+
+		const promptRenderer = PromptRenderer.create(this._instantiationService, endpoint, TerminalQuickFixFileContextPrompt, {
+			commandLine: commandMatchResult.commandLine,
+			output: [],
+		});
+
+		const prompt = await promptRenderer.render(undefined, undefined);
+		this._logService.debug('_generalTerminalQuickFixFileContext prompt.messages: ' + prompt.messages);
+
+        // NOTE - 调整提示词顺序
+		const mapMessages = new Map<Raw.ChatRole, Raw.ChatMessage>();
+		for (var i = 0; i < prompt.messages.length; i++) {
+			const item = prompt.messages[i];
+
+			if (mapMessages.has(item.role) === false) {
+				mapMessages.set(item.role, item);
+			} else {
+				const origin = mapMessages.get(item.role)!;
+
+				const lastContent = origin.content.at(-1);
+				const nextContent = item.content.at(0);
+				if (lastContent && nextContent && lastContent.type === Raw.ChatCompletionContentPartKind.Text && nextContent.type === Raw.ChatCompletionContentPartKind.Text) {
+					lastContent.text = lastContent.text.trimEnd() + '\n' + nextContent.text;
+					origin.content = origin.content.concat(item.content.slice(1));
+				} else {
+					origin.content.push(toTextPart('\n'));
+					origin.content = origin.content.concat(item.content);
+				}
+			}
+		}
+
+		prompt.messages.splice(0, prompt.messages.length);
+		for (let item of mapMessages.values()) {
+			prompt.messages.push(item);
+		}
+
+		const fetchResult = await endpoint.makeChatRequest(
+			'terminalQuickFixGenerator',
+			prompt.messages,
+			async _ => void 0,
+			token,
+			ChatLocation.Other
+		);
+		this._logService.info('Terminal Quick Fix Fetch Result: ' + fetchResult);
+		if (token.isCancellationRequested) {
+			return;
+		}
+		if (fetchResult.type !== 'success') {
+			throw new Error(vscode.l10n.t('Encountered an error while fetching quick fix file context: {0}', fetchResult.type));
+		}
+
+		this._logService.debug('_generalTerminalQuickFixFileContext fetchResult.value' + fetchResult.value);
+
+		// Parse result json
+		const parsedResults: { fileName: string }[] = [];
+		try {
+			const json = JSON.parse(fetchResult.value) as unknown;
+			if (json && Array.isArray(json)) {
+				for (const entry of (json as unknown[])) {
+					if (typeof entry === 'object' && entry) {
+						const fileName = 'fileName' in entry && typeof entry.fileName === 'string' ? entry.fileName : undefined;
+						if (fileName) {
+							parsedResults.push({ fileName });
+						}
+					}
+				}
+			}
+		} catch {
+			// no-op
+		}
+
+		const uris: Uri[] = [];
+		const requestedFiles: Set<string> = new Set();
+		const folders = this._workspaceService.getWorkspaceFolders();
+		const tryAddFileVariables = async (file: string) => {
+			for (const rootFolder of folders) {
+				const uri = URI.joinPath(rootFolder, file);
+				if (requestedFiles.has(uri.toString())) {
+					return;
+				}
+				requestedFiles.add(uri.toString());
+				// Do not stat here as the follow up wants to know whether it exists
+				uris.push(uri);
+			}
+		};
+
+		for (const { fileName } of parsedResults) {
+			if (fileName.endsWith('.exe') || (fileName.includes('/bin/') && !fileName.endsWith('activate'))) {
+				continue;
+			}
+			if (isAbsolute(fileName)) {
+				uris.push(Uri.file(fileName));
+			} else {
+				await tryAddFileVariables(fileName);
+			}
+		}
+
+		return uris;
+	}
+```

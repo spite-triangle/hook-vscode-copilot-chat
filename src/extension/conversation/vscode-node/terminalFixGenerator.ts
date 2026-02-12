@@ -5,9 +5,11 @@
 
 
 import * as l10n from '@vscode/l10n';
+import { Raw } from '@vscode/prompt-tsx';
 import * as vscode from 'vscode';
 import { Uri } from 'vscode';
 import { ChatLocation } from '../../../platform/chat/common/commonTypes';
+import { toTextPart } from '../../../platform/chat/common/globalStringUtils';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
@@ -170,6 +172,32 @@ class TerminalQuickFixGenerator {
 
 		const prompt = await promptRenderer.render(undefined, undefined);
 
+		const mapMessages = new Map<Raw.ChatRole, Raw.ChatMessage>();
+		for (var i = 0; i < prompt.messages.length; i++) {
+			const item = prompt.messages[i];
+
+			if (mapMessages.has(item.role) === false) {
+				mapMessages.set(item.role, item);
+			} else {
+				const origin = mapMessages.get(item.role)!;
+
+				const lastContent = origin.content.at(-1);
+				const nextContent = item.content.at(0);
+				if (lastContent && nextContent && lastContent.type === Raw.ChatCompletionContentPartKind.Text && nextContent.type === Raw.ChatCompletionContentPartKind.Text) {
+					lastContent.text = lastContent.text.trimEnd() + '\n' + nextContent.text;
+					origin.content = origin.content.concat(item.content.slice(1));
+				} else {
+					origin.content.push(toTextPart('\n'));
+					origin.content = origin.content.concat(item.content);
+				}
+			}
+		}
+
+		prompt.messages.splice(0, prompt.messages.length);
+		for (let item of mapMessages.values()) {
+			prompt.messages.push(item);
+		}
+
 		const fetchResult = await endpoint.makeChatRequest(
 			'terminalQuickFixGenerator',
 			prompt.messages,
@@ -225,6 +253,33 @@ class TerminalQuickFixGenerator {
 
 		const prompt = await promptRenderer.render(undefined, undefined);
 		this._logService.debug('_generalTerminalQuickFixFileContext prompt.messages: ' + prompt.messages);
+
+		const mapMessages = new Map<Raw.ChatRole, Raw.ChatMessage>();
+		for (var i = 0; i < prompt.messages.length; i++) {
+			const item = prompt.messages[i];
+
+			if (mapMessages.has(item.role) === false) {
+				mapMessages.set(item.role, item);
+			} else {
+				const origin = mapMessages.get(item.role)!;
+
+				const lastContent = origin.content.at(-1);
+				const nextContent = item.content.at(0);
+				if (lastContent && nextContent && lastContent.type === Raw.ChatCompletionContentPartKind.Text && nextContent.type === Raw.ChatCompletionContentPartKind.Text) {
+					lastContent.text = lastContent.text.trimEnd() + '\n' + nextContent.text;
+					origin.content = origin.content.concat(item.content.slice(1));
+				} else {
+					origin.content.push(toTextPart('\n'));
+					origin.content = origin.content.concat(item.content);
+				}
+			}
+		}
+
+		prompt.messages.splice(0, prompt.messages.length);
+		for (let item of mapMessages.values()) {
+			prompt.messages.push(item);
+		}
+
 
 		const fetchResult = await endpoint.makeChatRequest(
 			'terminalQuickFixGenerator',
