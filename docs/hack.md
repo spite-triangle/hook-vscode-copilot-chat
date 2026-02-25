@@ -22,12 +22,27 @@
             "type": "object",
             "default": {},
             "properties": {
-                "baseUrl": { "type": "string" },
-                "apiKey": { "type": "string" },
-                "model": { "type": "string" },
-                "model_picker_enabled": { "type": "boolean", "default": true },
-                "is_chat_default": { "type": "boolean" , "default": false},
-                "version": { "type": "string" , "default":"v1.0.0"},
+                "baseUrl": {
+                    "type": "string"
+                },
+                "apiKey": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "model_picker_enabled": {
+                    "type": "boolean",
+                    "default": true
+                },
+                "is_chat_default": {
+                    "type": "boolean",
+                    "default": false
+                },
+                "version": {
+                    "type": "string",
+                    "default": "v1.0.0"
+                },
                 "supported_endpoints": {
                     "type": "array",
                     "default": [],
@@ -55,18 +70,36 @@
                         }
                     },
                     "properties": {
-                        "type": { "const": "chat" },
-                        "tokenizer": { "type": "string", "enum": ["cl100k_base", "o200k_base"], "default": "o200k_base" },
+                        "type": {
+                            "const": "chat"
+                        },
+                        "tokenizer": {
+                            "type": "string",
+                            "enum": [
+                                "cl100k_base",
+                                "o200k_base"
+                            ],
+                            "default": "o200k_base"
+                        },
                         "limits": {
                             "type": "object",
                             "properties": {
-                                "max_prompt_tokens": { "type": "number", "default":  128000},
-                                "max_output_tokens": { "type": "number" , "default": 64000},
-                                "max_context_window_tokens": { "type": "number", "default":  264000},
+                                "max_prompt_tokens": {
+                                    "type": "number"
+                                },
+                                "max_output_tokens": {
+                                    "type": "number"
+                                },
+                                "max_context_window_tokens": {
+                                    "type": "number",
+                                    "default": 128000
+                                },
                                 "vision": {
                                     "type": "object",
                                     "properties": {
-                                        "max_prompt_images": { "type": "number" }
+                                        "max_prompt_images": {
+                                            "type": "number"
+                                        }
                                     }
                                 }
                             },
@@ -81,66 +114,157 @@
                                 "parallel_tool_calls": true
                             },
                             "properties": {
-                                "parallel_tool_calls": { "type": "boolean", "default": true },
-                                "tool_calls": { "type": "boolean" , "default": true},
-                                "streaming": { "type": ["boolean","null"], "default": true },
-                                "vision": { "type": "boolean", "default": false },
-                                "prediction": { "type": "boolean", "default": false },
-                                "thinking": { "type": "boolean", "default":false }
+                                "parallel_tool_calls": {
+                                    "type": "boolean",
+                                    "default": true
+                                },
+                                "tool_calls": {
+                                    "type": "boolean",
+                                    "default": true
+                                },
+                                "streaming": {
+                                    "type": [
+                                        "boolean",
+                                        "null"
+                                    ],
+                                    "default": true
+                                },
+                                "vision": {
+                                    "type": "boolean",
+                                    "default": false
+                                },
+                                "prediction": {
+                                    "type": "boolean",
+                                    "default": false
+                                },
+                                "thinking": {
+                                    "type": "boolean",
+                                    "default": false
+                                }
                             }
                         }
                     }
                 }
-
             },
-            "required": ["apiKey","baseUrl","model"],
+            "required": [
+                "apiKey",
+                "baseUrl",
+                "model"
+            ],
             "additionalProperties": false
         },
         "inline": {
             "type": "object",
             "properties": {
-                "baseUrl": { "type": "string" },
-                "apiKey": { "type": "string" },
-                "model": { "type": "string" },
-                "remove_prefix": {"type":"boolean", "default": false},
-                "mode": { "type": "string" , "enum": ["chat", "code"]},
-                "model_picker_enabled": { "type": "boolean", "default": false },
+                "baseUrl": {
+                    "type": "string"
+                },
+                "apiKey": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "remove_prefix": {
+                    "type": "boolean",
+                    "default": false
+                },
+                "mode": {
+                    "type": "string",
+                    "enum": [
+                        "chat",
+                        "code"
+                    ]
+                },
                 "stop": {
                     "type": "array",
-                    "items": { "type": "string" }
+                    "items": {
+                        "type": "string"
+                    }
                 },
-                "is_chat_default": { "type": "boolean" , "default": false},
-                "is_chat_fallback": { "type": "boolean" , "default": true},
-                "version": { "type": "string" , "default":"v1.0.0"},
+                "model_picker_enabled": {
+                    "type": "boolean",
+                    "default": false
+                },
+                "is_chat_default": {
+                    "type": "boolean",
+                    "default": false
+                },
+                "is_chat_fallback": {
+                    "type": "boolean",
+                    "default": true
+                },
+                "version": {
+                    "type": "string",
+                    "default": "v1.0.0"
+                },
                 "capabilities": {
                     "type": "object",
                     "properties": {
-                        "type": { "const": "completion" },
-                        "tokenizer": { "type": "string", "enum": ["cl100k_base", "o200k_base"] , "default": "o200k_base"},
+                        "type": {
+                            "const": "completion"
+                        },
+                        "tokenizer": {
+                            "type": "string",
+                            "enum": [
+                                "cl100k_base",
+                                "o200k_base"
+                            ],
+                            "default": "o200k_base"
+                        },
                         "limits": {
                             "type": "object",
                             "properties": {
-                                "interval": {"type": "number", "default": 300}
+                                "interval": {
+                                    "type": "number",
+                                    "default": 300
+                                }
                             }
                         }
                     },
                     "additionalProperties": false
                 }
             },
-            "required": ["apiKey","baseUrl","model","mode"],
+            "required": [
+                "apiKey",
+                "baseUrl",
+                "model",
+                "mode"
+            ],
             "additionalProperties": false
         },
         "next": {
             "type": "object",
             "properties": {
-                "baseUrl": { "type": "string" },
-                "apiKey": { "type": "string" },
-                "model": { "type": "string" },
-                "model_picker_enabled": { "type": "boolean", "default": false },
-                "is_chat_default": { "type": "boolean" , "default": false},
-                "is_chat_fallback": { "type": "boolean" , "default": true},
-                "remove_code_mark": {"type": "boolean", "default": true},
-                "version": { "type": "string" , "default":"v1.0.0"},
+                "baseUrl": {
+                    "type": "string"
+                },
+                "apiKey": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "model_picker_enabled": {
+                    "type": "boolean",
+                    "default": false
+                },
+                "is_chat_default": {
+                    "type": "boolean",
+                    "default": false
+                },
+                "is_chat_fallback": {
+                    "type": "boolean",
+                    "default": true
+                },
+                "remove_code_mark": {
+                    "type": "boolean",
+                    "default": true
+                },
+                "version": {
+                    "type": "string",
+                    "default": "v1.0.0"
+                },
                 "supported_endpoints": {
                     "type": "array",
                     "items": {
@@ -167,122 +291,36 @@
                         }
                     },
                     "properties": {
-                        "type": { "const": "chat" },
-                        "tokenizer": { "type": "string", "enum": ["cl100k_base", "o200k_base"], "default": "o200k_base" },
-                        "limits": {
-                            "type": "object",
-                            "properties": {
-                                "max_prompt_tokens": { "type": "number", "default":  128000},
-                                "max_output_tokens": { "type": "number" , "default": 64000},
-                                "max_context_window_tokens": { "type": "number", "default":  264000},
-                                "vision": {
-                                    "type": "object",
-                                    "properties": {
-                                        "max_prompt_images": { "type": "number" }
-                                    }
-                                }
-                            },
-                            "additionalProperties": false
+                        "type": {
+                            "const": "chat"
                         },
-                        "supports": {
-                            "type": "object",
-                            "default":{
-                                "streaming": true,
-                                "thinking": false,
-                                "vision": false,
-                                "tool_calls": true,
-                                "parallel_tool_calls": true
-                            },
-                            "properties": {
-                                "parallel_tool_calls": { "type": "boolean", "default": true },
-                                "tool_calls": { "type": "boolean" , "default": true},
-                                "streaming": { "type": ["boolean","null"], "default": true },
-                                "vision": { "type": "boolean", "default": false },
-                                "prediction": { "type": "boolean", "default": false },
-                                "thinking": { "type": "boolean", "default":false }
-                            }
-                        }
-                    }
-                }
-            },
-            "required": ["apiKey","baseUrl","model"],
-            "additionalProperties": false
-        },
-        "embedding": {
-            "type": "object",
-            "properties": {
-                "baseUrl": { "type": "string" },
-                "apiKey": { "type": "string" },
-                "model": { "type": "string" },
-                "version": { "type": "string" , "default":"v1.0.0"},
-                "capabilities": {
-                    "type": "object",
-                    "properties": {
-                        "type": { "const": "embeddings" },
-                        "tokenizer": { "type": "string", "enum": ["cl100k_base", "o200k_base"] , "default": "o200k_base"},
-                        "chunk_strategy": { "type": "string", "enum": ["token", "recursive"], "default":"token"},
+                        "tokenizer": {
+                            "type": "string",
+                            "enum": [
+                                "cl100k_base",
+                                "o200k_base"
+                            ],
+                            "default": "o200k_base"
+                        },
                         "limits": {
                             "type": "object",
                             "properties": {
-                                "max_inputs": { "type": "number" },
-                                "max_token": { "type": "number" }
-                            },
-                            "additionalProperties": false
-                        }
-                    }
-                }
-            },
-            "required": ["apiKey","baseUrl","model"],
-            "additionalProperties": false
-        },
-        "fast": {
-            "type": "object",
-            "properties": {
-                "baseUrl": { "type": "string" },
-                "apiKey": { "type": "string" },
-                "model": { "type": "string" },
-                "model_picker_enabled": { "type": "boolean", "default": true },
-                "is_chat_default": { "type": "boolean" , "default": false},
-                "is_chat_fallback": { "type": "boolean" , "default": false},
-                "version": { "type": "string" , "default":"v1.0.0"},
-                "supported_endpoints": {
-                    "type": "array",
-                    "items": {
-                        "type": "string",
-                        "enum": [
-                            "/chat/completions",
-                            "/responses",
-                            "/v1/messages"
-                        ]
-                    }
-                },
-                "capabilities": {
-                    "type": "object",
-                    "default": {
-                        "type": "chat",
-                        "family": "custom",
-                        "tokenizer": "o200k_base",
-                        "supports": {
-                            "streaming": true,
-                            "thinking": false,
-                            "vision": false,
-                            "tool_calls": true,
-                            "parallel_tool_calls": true
-                        }
-                    },
-                    "properties": {
-                        "type": { "const": "chat" },
-                        "tokenizer": { "type": "string", "enum": ["cl100k_base", "o200k_base"], "default": "o200k_base" },
-                        "limits": {
-                            "type": "object",
-                            "properties": {
-                                "max_prompt_tokens": { "type": "number", "default":  128000},
-                                "max_output_tokens": { "type": "number" , "default": 64000},
-                                "max_context_window_tokens": { "type": "number", "default":  264000},
+                                "max_prompt_tokens": {
+                                    "type": "number"
+                                },
+                                "max_output_tokens": {
+                                    "type": "number"
+                                },
+                                "max_context_window_tokens": {
+                                    "type": "number",
+                                    "default": 128000
+                                },
                                 "vision": {
                                     "type": "object",
                                     "properties": {
-                                        "max_prompt_images": { "type": "number" }
+                                        "max_prompt_images": {
+                                            "type": "number"
+                                        }
                                     }
                                 }
                             },
@@ -298,41 +336,284 @@
                                 "parallel_tool_calls": true
                             },
                             "properties": {
-                                "parallel_tool_calls": { "type": "boolean", "default": true },
-                                "tool_calls": { "type": "boolean" , "default": true},
-                                "streaming": { "type": ["boolean","null"], "default": true },
-                                "vision": { "type": "boolean", "default": false },
-                                "prediction": { "type": "boolean", "default": false },
-                                "thinking": { "type": "boolean", "default":false }
+                                "parallel_tool_calls": {
+                                    "type": "boolean",
+                                    "default": true
+                                },
+                                "tool_calls": {
+                                    "type": "boolean",
+                                    "default": true
+                                },
+                                "streaming": {
+                                    "type": [
+                                        "boolean",
+                                        "null"
+                                    ],
+                                    "default": true
+                                },
+                                "vision": {
+                                    "type": "boolean",
+                                    "default": false
+                                },
+                                "prediction": {
+                                    "type": "boolean",
+                                    "default": false
+                                },
+                                "thinking": {
+                                    "type": "boolean",
+                                    "default": false
+                                }
                             }
                         }
                     }
                 }
             },
-            "required": ["apiKey","baseUrl","model"],
+            "required": [
+                "apiKey",
+                "baseUrl",
+                "model"
+            ],
             "additionalProperties": false
         },
-        "extras":{
-            "type":"array",
+        "embedding": {
+            "type": "object",
+            "properties": {
+                "baseUrl": {
+                    "type": "string"
+                },
+                "apiKey": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "version": {
+                    "type": "string",
+                    "default": "v1.0.0"
+                },
+                "capabilities": {
+                    "type": "object",
+                    "properties": {
+                        "type": {
+                            "const": "embeddings"
+                        },
+                        "tokenizer": {
+                            "type": "string",
+                            "enum": [
+                                "cl100k_base",
+                                "o200k_base"
+                            ],
+                            "default": "o200k_base"
+                        },
+                        "chunk_strategy": {
+                            "type": "string",
+                            "enum": [
+                                "token",
+                                "recursive"
+                            ],
+                            "default": "token"
+                        },
+                        "limits": {
+                            "type": "object",
+                            "properties": {
+                                "max_inputs": {
+                                    "type": "number"
+                                },
+                                "max_token": {
+                                    "type": "number"
+                                }
+                            },
+                            "additionalProperties": false
+                        }
+                    }
+                }
+            },
+            "required": [
+                "apiKey",
+                "baseUrl",
+                "model"
+            ],
+            "additionalProperties": false
+        },
+        "fast": {
+            "type": "object",
+            "properties": {
+                "baseUrl": {
+                    "type": "string"
+                },
+                "apiKey": {
+                    "type": "string"
+                },
+                "model": {
+                    "type": "string"
+                },
+                "model_picker_enabled": {
+                    "type": "boolean",
+                    "default": true
+                },
+                "is_chat_default": {
+                    "type": "boolean",
+                    "default": false
+                },
+                "is_chat_fallback": {
+                    "type": "boolean",
+                    "default": false
+                },
+                "version": {
+                    "type": "string",
+                    "default": "v1.0.0"
+                },
+                "supported_endpoints": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": [
+                            "/chat/completions",
+                            "/responses",
+                            "/v1/messages"
+                        ]
+                    }
+                },
+                "capabilities": {
+                    "type": "object",
+                    "default": {
+                        "type": "chat",
+                        "family": "custom",
+                        "tokenizer": "o200k_base",
+                        "supports": {
+                            "streaming": true,
+                            "thinking": false,
+                            "vision": false,
+                            "tool_calls": true,
+                            "parallel_tool_calls": true
+                        }
+                    },
+                    "properties": {
+                        "type": {
+                            "const": "chat"
+                        },
+                        "tokenizer": {
+                            "type": "string",
+                            "enum": [
+                                "cl100k_base",
+                                "o200k_base"
+                            ],
+                            "default": "o200k_base"
+                        },
+                        "limits": {
+                            "type": "object",
+                            "properties": {
+                                "max_prompt_tokens": {
+                                    "type": "number"
+                                },
+                                "max_output_tokens": {
+                                    "type": "number"
+                                },
+                                "max_context_window_tokens": {
+                                    "type": "number",
+                                    "default": 128000
+                                },
+                                "vision": {
+                                    "type": "object",
+                                    "properties": {
+                                        "max_prompt_images": {
+                                            "type": "number"
+                                        }
+                                    }
+                                }
+                            },
+                            "additionalProperties": false
+                        },
+                        "supports": {
+                            "type": "object",
+                            "default": {
+                                "streaming": true,
+                                "thinking": false,
+                                "vision": false,
+                                "tool_calls": true,
+                                "parallel_tool_calls": true
+                            },
+                            "properties": {
+                                "parallel_tool_calls": {
+                                    "type": "boolean",
+                                    "default": true
+                                },
+                                "tool_calls": {
+                                    "type": "boolean",
+                                    "default": true
+                                },
+                                "streaming": {
+                                    "type": [
+                                        "boolean",
+                                        "null"
+                                    ],
+                                    "default": true
+                                },
+                                "vision": {
+                                    "type": "boolean",
+                                    "default": false
+                                },
+                                "prediction": {
+                                    "type": "boolean",
+                                    "default": false
+                                },
+                                "thinking": {
+                                    "type": "boolean",
+                                    "default": false
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            "required": [
+                "apiKey",
+                "baseUrl",
+                "model"
+            ],
+            "additionalProperties": false
+        },
+        "extras": {
+            "type": "array",
             "items": {
                 "type": "object",
                 "properties": {
-                    "baseUrl": { "type": "string" },
-                    "apiKey": { "type": "string" },
-                    "model": { "type": "string" },
-                    "is_chat_default": { "type": "boolean" , "default": false},
-                    "is_chat_fallback": { "type": "boolean" , "default": false},
+                    "baseUrl": {
+                        "type": "string"
+                    },
+                    "apiKey": {
+                        "type": "string"
+                    },
+                    "model": {
+                        "type": "string"
+                    },
+                    "is_chat_default": {
+                        "type": "boolean",
+                        "default": false
+                    },
+                    "is_chat_fallback": {
+                        "type": "boolean",
+                        "default": false
+                    },
+                    "version": {
+                        "type": "string",
+                        "default": "v1.0.0"
+                    },
                     "info_messages": {
                         "type": "array",
                         "items": {
                             "type": "object",
                             "properties": {
-                                "code" : {"type" : "string" , "default": ""},
-                                "message": {"type": "string"}
+                                "code": {
+                                    "type": "string",
+                                    "default": ""
+                                },
+                                "message": {
+                                    "type": "string"
+                                }
                             }
                         }
                     },
-                    "version": { "type": "string" , "default":"v1.0.0"},
                     "supported_endpoints": {
                         "type": "array",
                         "items": {
@@ -359,19 +640,40 @@
                             }
                         },
                         "properties": {
-                            "type": { "const": "chat" },
-                            "family": { "type": "string", "default": "custom"},
-                            "tokenizer": { "type": "string", "enum": ["cl100k_base", "o200k_base"], "default": "o200k_base" },
+                            "type": {
+                                "const": "chat"
+                            },
+                            "family": {
+                                "type": "string",
+                                "default": "custom"
+                            },
+                            "tokenizer": {
+                                "type": "string",
+                                "enum": [
+                                    "cl100k_base",
+                                    "o200k_base"
+                                ],
+                                "default": "o200k_base"
+                            },
                             "limits": {
                                 "type": "object",
                                 "properties": {
-                                    "max_prompt_tokens": { "type": "number", "default":  128000},
-                                    "max_output_tokens": { "type": "number" , "default": 64000},
-                                    "max_context_window_tokens": { "type": "number", "default":  264000},
+                                    "max_prompt_tokens": {
+                                        "type": "number"
+                                    },
+                                    "max_output_tokens": {
+                                        "type": "number"
+                                    },
+                                    "max_context_window_tokens": {
+                                        "type": "number",
+                                        "default": 128000
+                                    },
                                     "vision": {
                                         "type": "object",
                                         "properties": {
-                                            "max_prompt_images": { "type": "number" }
+                                            "max_prompt_images": {
+                                                "type": "number"
+                                            }
                                         }
                                     }
                                 },
@@ -387,24 +689,61 @@
                                     "parallel_tool_calls": true
                                 },
                                 "properties": {
-                                    "parallel_tool_calls": { "type": "boolean", "default": true },
-                                    "tool_calls": { "type": "boolean" , "default": true},
-                                    "streaming": { "type": ["boolean","null"], "default": true },
-                                    "vision": { "type": "boolean", "default": false },
-                                    "prediction": { "type": "boolean", "default": false },
-                                    "thinking": { "type": "boolean", "default":false }
+                                    "parallel_tool_calls": {
+                                        "type": "boolean",
+                                        "default": true
+                                    },
+                                    "tool_calls": {
+                                        "type": "boolean",
+                                        "default": true
+                                    },
+                                    "streaming": {
+                                        "type": [
+                                            "boolean",
+                                            "null"
+                                        ],
+                                        "default": true
+                                    },
+                                    "vision": {
+                                        "type": "boolean",
+                                        "default": false
+                                    },
+                                    "prediction": {
+                                        "type": "boolean",
+                                        "default": false
+                                    },
+                                    "thinking": {
+                                        "type": "boolean",
+                                        "default": false
+                                    }
                                 }
                             }
                         },
-                        "required": ["type","family","tokenizer","supports"]
+                        "required": [
+                            "type",
+                            "family",
+                            "tokenizer",
+                            "supports"
+                        ]
                     }
                 },
-                "required": ["apiKey","baseUrl","model","capabilities"],
+                "required": [
+                    "apiKey",
+                    "baseUrl",
+                    "model",
+                    "capabilities"
+                ],
                 "additionalProperties": false
             }
         }
     },
-    "required": ["base","inline", "fast" , "next", "embedding"]
+    "required": [
+        "base",
+        "inline",
+        "fast",
+        "next",
+        "embedding"
+    ]
 }
 ```
 
@@ -633,6 +972,22 @@
     }
     ```
 
+- 文件 `src\extension\agents\claude\node\claudeLanguageModelServer.ts`
+- 修改类 `ClaudeStreamingPassThroughEndpoint`
+- 修改后
+
+    ```ts
+    public get urlOrRequestMetadata(): string | RequestMetadata {
+		// Force Messages API endpoint - we need this regardless of the useMessagesApi setting
+		// since we're proxying Messages API format requests from Claude Code
+		const baseUrl = this.base.urlOrRequestMetadata;
+		if (typeof baseUrl === 'string') {
+			return baseUrl;
+		}
+		return { type: RequestType.ChatMessages, baseUrl: baseUrl.baseUrl, apiKey: baseUrl.apiKey, model: baseUrl.model };
+	}
+
+    ```
 
 ## 模型获取
 
@@ -680,177 +1035,179 @@
         const requestId = generateUuid();
         const requestMetadata = { type: RequestType.Models, isModelLab: this._isModelLab };
 
-        try {
-            const base_config = workspace.getConfiguration('github.copilot.hackModels.base');
-            const inline_config = workspace.getConfiguration('github.copilot.hackModels.inline');
-            const embedding_config = workspace.getConfiguration('github.copilot.hackModels.embedding');
-            const fast_config = workspace.getConfiguration('github.copilot.hackModels.fast');
-            const models: IModelAPIResponse[] = [
-                // base
-                {
-                    id: "gpt-5-mini",
-                    preview: false,
-                    baseUrl: base_config.get("baseUrl", "http://steam"),
-                    apiKey: base_config.get("apiKey", "xxxxx"),
-                    name: base_config.get("model", "gpt-5.2"),
-                    model: base_config.get("model", "gpt-5.2"),
-                    is_chat_default: base_config.get("is_chat_default", true),
-                    is_chat_fallback: true,
-                    model_picker_enabled: base_config.get("model_picker_enabled", true),
-                    version: base_config.get("version", "v1.0.0"),
-                    supported_endpoints: base_config.get("supported_endpoints", [ModelSupportedEndpoint.ChatCompletions]) as ModelSupportedEndpoint[],
-                    capabilities: {
-                        type: "chat",
-                        family: "gpt-5-mini",
-                        tokenizer: base_config.get("capabilities.tokenizer", TokenizerType.O200K),
-                        limits: {
-                            max_context_window_tokens: base_config.get("capabilities.limits.max_context_window_tokens", 128000),
-                            max_output_tokens: base_config.get("capabilities.limits.max_output_tokens", 64000),
-                            max_prompt_tokens: base_config.get("capabilities.limits.max_prompt_tokens", 128000),
-                            vision: {
-                                max_prompt_images: base_config.get("capabilities.limits.vision.max_prompt_images", 1)
-                            }
-                        },
-                        supports: {
-                            parallel_tool_calls: base_config.get("capabilities.supports.parallel_tool_calls", true),
-                            streaming: base_config.get("capabilities.supports.streaming", true),
-                            tool_calls: base_config.get("capabilities.supports.tool_calls", true),
-                            vision: base_config.get("capabilities.supports.vision", true)
-                        },
-                    },
-                    policy: {
-                        state: "enabled",
-                        terms: "Enable access to the latest GPT-5 mini model from OpenAI. [Learn more about how GitHub Copilot serves GPT-5 mini](https://gh.io/copilot-openai)."
-                    },
-                    billing: {
-                        is_premium: true,
-                        multiplier: 1
-                    },
-                },
-                // ChatCompletions
-                {
-                    id: "gpt-41-copilot",
-                    preview: false,
-                    baseUrl: inline_config.get("baseUrl", "http://steam"),
-                    apiKey: inline_config.get("apiKey", "xxxxx"),
-                    model: inline_config.get("model", "gpt-4.1"),
-                    name: inline_config.get("model", "gpt-4.1"),
-                    is_chat_default: inline_config.get("is_chat_default", true),
-                    is_chat_fallback: inline_config.get("is_chat_fallback", false),
-                    model_picker_enabled: inline_config.get("model_picker_enabled", true),
-                    version: inline_config.get("version", "v1.0.0"),
-                    supported_endpoints: inline_config.get("supported_endpoints", [ModelSupportedEndpoint.ChatCompletions]) as ModelSupportedEndpoint[],
-                    capabilities: {
-                        type: "completion",
-                        family: "gpt-4.1",
-                        tokenizer: inline_config.get("capabilities.tokenizer", TokenizerType.O200K),
-                    },
-                    billing: {
-                        is_premium: true,
-                        multiplier: 1
-                    },
-                },
-                // embedding
-                {
-                    id: "text-embedding-3-small",
-                    preview: false,
-                    model_picker_enabled: false,
-                    baseUrl: embedding_config.get("baseUrl", "http://steam"),
-                    apiKey: embedding_config.get("apiKey", "xxxxx"),
-                    model: embedding_config.get("model", "text-embedding-3-small"),
-                    name: embedding_config.get("model", "text-embedding-3-small"),
-                    is_chat_default: false,
-                    is_chat_fallback: false,
-                    version: embedding_config.get("version", "v1.0.0"),
-                    capabilities: {
-                        type: "embeddings",
-                        family: "text-embedding-3-small",
-                        chunk_strategy: embedding_config.get("capabilities.chunk_strategy", "token"),
-                        tokenizer: embedding_config.get("capabilities.tokenizer", TokenizerType.O200K),
-                        limits: {
-                            max_inputs: embedding_config.get("capabilities.limits.max_inputs", 10),
-                            max_token: embedding_config.get("capabilities.limits.max_token", 250)
-                        },
-                    },
-                    billing: {
-                        is_premium: true,
-                        multiplier: 1
-                    },
-                },
-                // fast
-                {
-                    id: "gpt-4o-mini",
-                    preview: false,
-                    baseUrl: fast_config.get("baseUrl", "http://steam"),
-                    apiKey: fast_config.get("apiKey", "xxxxx"),
-                    name: fast_config.get("model", "gpt-4o-mini"),
-                    model: fast_config.get("model", "gpt-4o-mini"),
-                    is_chat_default: fast_config.get("is_chat_default", true),
-                    is_chat_fallback: fast_config.get("is_chat_fallback", false),
-                    model_picker_enabled: fast_config.get("model_picker_enabled", false),
-                    version: fast_config.get("version", "v1.0.0"),
-                    supported_endpoints: fast_config.get("supported_endpoints", [ModelSupportedEndpoint.ChatCompletions]) as ModelSupportedEndpoint[],
-                    capabilities: {
-                        type: "chat",
-                        family: "gpt-4o-mini",
-                        tokenizer: fast_config.get("capabilities.tokenizer", TokenizerType.O200K),
-                        limits: {
-                            max_context_window_tokens: fast_config.get("capabilities.limits.max_context_window_tokens", 128000),
-                            max_output_tokens: fast_config.get("capabilities.limits.max_output_tokens", 64000),
-                            max_prompt_tokens: fast_config.get("capabilities.limits.max_prompt_tokens", 128000),
-                            vision: {
-                                max_prompt_images: fast_config.get("capabilities.limits.vision.max_prompt_images", 1)
-                            }
-                        },
-                        supports: {
-                            parallel_tool_calls: fast_config.get("capabilities.supports.parallel_tool_calls", true),
-                            streaming: fast_config.get("capabilities.supports.streaming", true),
-                            tool_calls: fast_config.get("capabilities.supports.tool_calls", true),
-                            vision: fast_config.get("capabilities.supports.vision", true)
-                        },
-                    },
-                    billing: {
-                        is_premium: true,
-                        multiplier: 1
-                    },
-                },
-                {
-                    id: "gpt-4.1",
-                    preview: false,
-                    baseUrl: fast_config.get("baseUrl", "http://steam"),
-                    apiKey: fast_config.get("apiKey", "xxxxx"),
-                    name: fast_config.get("model", "gpt-4.1"),
-                    model: fast_config.get("model", "gpt-4.1"),
-                    is_chat_default: fast_config.get("is_chat_default", true),
-                    is_chat_fallback: fast_config.get("is_chat_fallback", false),
-                    model_picker_enabled: false,
-                    version: fast_config.get("version", "v1.0.0"),
-                    supported_endpoints: fast_config.get("supported_endpoints", [ModelSupportedEndpoint.ChatCompletions]) as ModelSupportedEndpoint[],
-                    capabilities: {
-                        type: "chat",
-                        family: "gpt-4.1",
-                        tokenizer: fast_config.get("capabilities.tokenizer", TokenizerType.O200K),
-                        limits: {
-                            max_context_window_tokens: fast_config.get("capabilities.limits.max_context_window_tokens", 128000),
-                            max_output_tokens: fast_config.get("capabilities.limits.max_output_tokens", 64000),
-                            max_prompt_tokens: fast_config.get("capabilities.limits.max_prompt_tokens", 128000),
-                            vision: {
-                                max_prompt_images: fast_config.get("capabilities.limits.vision.max_prompt_images", 1)
-                            }
-                        },
-                        supports: {
-                            parallel_tool_calls: fast_config.get("capabilities.supports.parallel_tool_calls", true),
-                            streaming: fast_config.get("capabilities.supports.streaming", true),
-                            tool_calls: fast_config.get("capabilities.supports.tool_calls", true),
-                            vision: fast_config.get("capabilities.supports.vision", true)
-                        },
-                    },
-                    billing: {
-                        is_premium: true,
-                        multiplier: 1
-                    },
-                }
-            ];
+		try {
+			const base_config = workspace.getConfiguration('github.copilot.hackModels.base');
+			const inline_config = workspace.getConfiguration('github.copilot.hackModels.inline');
+			const embedding_config = workspace.getConfiguration('github.copilot.hackModels.embedding');
+			const fast_config = workspace.getConfiguration('github.copilot.hackModels.fast');
+			const claude_config = workspace.getConfiguration('github.copilot.hackModels.claude');
+
+			const models: IModelAPIResponse[] = [
+				// base
+				{
+					id: "gpt-5-mini",
+					preview: false,
+					baseUrl: base_config.get("baseUrl", "http://steam"),
+					apiKey: base_config.get("apiKey", "xxxxx"),
+					name: base_config.get("model", "gpt-5.2"),
+					model: base_config.get("model", "gpt-5.2"),
+					is_chat_default: base_config.get("is_chat_default", true),
+					is_chat_fallback: true,
+					model_picker_enabled: base_config.get("model_picker_enabled", true),
+					version: base_config.get("version", "v1.0.0"),
+					supported_endpoints: base_config.get("supported_endpoints", [ModelSupportedEndpoint.ChatCompletions]) as ModelSupportedEndpoint[],
+					capabilities: {
+						type: "chat",
+						family: "gpt-5-mini",
+						tokenizer: base_config.get("capabilities.tokenizer", TokenizerType.O200K),
+						limits: {
+							max_context_window_tokens: base_config.get("capabilities.limits.max_context_window_tokens", 128000),
+							max_output_tokens: base_config.get("capabilities.limits.max_output_tokens", Math.floor(base_config.get("capabilities.limits.max_context_window_tokens", 128000) * 0.25)),
+							max_prompt_tokens: base_config.get("capabilities.limits.max_prompt_tokens", Math.floor(base_config.get("capabilities.limits.max_context_window_tokens", 128000) * 0.5)),
+							vision: {
+								max_prompt_images: base_config.get("capabilities.limits.vision.max_prompt_images", 1)
+							}
+						},
+						supports: {
+							parallel_tool_calls: base_config.get("capabilities.supports.parallel_tool_calls", true),
+							streaming: base_config.get("capabilities.supports.streaming", true),
+							tool_calls: base_config.get("capabilities.supports.tool_calls", true),
+							vision: base_config.get("capabilities.supports.vision", true)
+						},
+					},
+					policy: {
+						state: "enabled",
+						terms: "Enable access to the latest GPT-5 mini model from OpenAI. [Learn more about how GitHub Copilot serves GPT-5 mini](https://gh.io/copilot-openai)."
+					},
+					billing: {
+						is_premium: true,
+						multiplier: 1
+					},
+				},
+				// ChatCompletions
+				{
+					id: "gpt-41-copilot",
+					preview: false,
+					baseUrl: inline_config.get("baseUrl", "http://steam"),
+					apiKey: inline_config.get("apiKey", "xxxxx"),
+					model: inline_config.get("model", "gpt-4.1"),
+					name: inline_config.get("model", "gpt-4.1"),
+					is_chat_default: inline_config.get("is_chat_default", false),
+					is_chat_fallback: inline_config.get("is_chat_fallback", false),
+					model_picker_enabled: inline_config.get("model_picker_enabled", true),
+					version: inline_config.get("version", "v1.0.0"),
+					supported_endpoints: inline_config.get("supported_endpoints", [ModelSupportedEndpoint.ChatCompletions]) as ModelSupportedEndpoint[],
+					capabilities: {
+						type: "completion",
+						family: "gpt-4.1",
+						tokenizer: inline_config.get("capabilities.tokenizer", TokenizerType.O200K),
+					},
+					billing: {
+						is_premium: true,
+						multiplier: 1
+					},
+				},
+				// embedding
+				{
+					id: "text-embedding-3-small",
+					preview: false,
+					model_picker_enabled: false,
+					baseUrl: embedding_config.get("baseUrl", "http://steam"),
+					apiKey: embedding_config.get("apiKey", "xxxxx"),
+					model: embedding_config.get("model", "text-embedding-3-small"),
+					name: embedding_config.get("model", "text-embedding-3-small"),
+					is_chat_default: false,
+					is_chat_fallback: false,
+					version: embedding_config.get("version", "v1.0.0"),
+					capabilities: {
+						type: "embeddings",
+						family: "text-embedding-3-small",
+						chunk_strategy: embedding_config.get("capabilities.chunk_strategy", "token"),
+						tokenizer: embedding_config.get("capabilities.tokenizer", TokenizerType.O200K),
+						limits: {
+							max_inputs: embedding_config.get("capabilities.limits.max_inputs", 10),
+							max_token: embedding_config.get("capabilities.limits.max_token", 250)
+						},
+					},
+					billing: {
+						is_premium: true,
+						multiplier: 1
+					},
+				},
+				// fast
+				{
+					id: "gpt-4o-mini",
+					preview: false,
+					baseUrl: fast_config.get("baseUrl", "http://steam"),
+					apiKey: fast_config.get("apiKey", "xxxxx"),
+					name: fast_config.get("model", "gpt-4o-mini"),
+					model: fast_config.get("model", "gpt-4o-mini"),
+					is_chat_default: fast_config.get("is_chat_default", true),
+					is_chat_fallback: fast_config.get("is_chat_fallback", false),
+					model_picker_enabled: fast_config.get("model_picker_enabled", false),
+					version: fast_config.get("version", "v1.0.0"),
+					supported_endpoints: fast_config.get("supported_endpoints", [ModelSupportedEndpoint.ChatCompletions]) as ModelSupportedEndpoint[],
+					capabilities: {
+						type: "chat",
+						family: "gpt-4o-mini",
+						tokenizer: fast_config.get("capabilities.tokenizer", TokenizerType.O200K),
+						limits: {
+							max_context_window_tokens: fast_config.get("capabilities.limits.max_context_window_tokens", 128000),
+							max_output_tokens: fast_config.get("capabilities.limits.max_output_tokens", Math.floor(base_config.get("capabilities.limits.max_context_window_tokens", 128000) * 0.25)),
+							max_prompt_tokens: fast_config.get("capabilities.limits.max_prompt_tokens", Math.floor(base_config.get("capabilities.limits.max_context_window_tokens", 128000) * 0.5)),
+							vision: {
+								max_prompt_images: fast_config.get("capabilities.limits.vision.max_prompt_images", 1)
+							}
+						},
+						supports: {
+							parallel_tool_calls: fast_config.get("capabilities.supports.parallel_tool_calls", true),
+							streaming: fast_config.get("capabilities.supports.streaming", true),
+							tool_calls: fast_config.get("capabilities.supports.tool_calls", true),
+							vision: fast_config.get("capabilities.supports.vision", true)
+						},
+					},
+					billing: {
+						is_premium: true,
+						multiplier: 1
+					},
+				},
+				{
+					id: "gpt-4.1",
+					preview: false,
+					baseUrl: fast_config.get("baseUrl", "http://steam"),
+					apiKey: fast_config.get("apiKey", "xxxxx"),
+					name: fast_config.get("model", "gpt-4.1"),
+					model: fast_config.get("model", "gpt-4.1"),
+					is_chat_default: fast_config.get("is_chat_default", true),
+					is_chat_fallback: fast_config.get("is_chat_fallback", false),
+					model_picker_enabled: false,
+					version: fast_config.get("version", "v1.0.0"),
+					supported_endpoints: fast_config.get("supported_endpoints", [ModelSupportedEndpoint.ChatCompletions]) as ModelSupportedEndpoint[],
+					capabilities: {
+						type: "chat",
+						family: "gpt-4.1",
+						tokenizer: fast_config.get("capabilities.tokenizer", TokenizerType.O200K),
+						limits: {
+							max_context_window_tokens: fast_config.get("capabilities.limits.max_context_window_tokens", 128000),
+							max_output_tokens: fast_config.get("capabilities.limits.max_output_tokens", Math.floor(base_config.get("capabilities.limits.max_context_window_tokens", 128000) * 0.25)),
+							max_prompt_tokens: fast_config.get("capabilities.limits.max_prompt_tokens", Math.floor(base_config.get("capabilities.limits.max_context_window_tokens", 128000) * 0.5)),
+							vision: {
+								max_prompt_images: fast_config.get("capabilities.limits.vision.max_prompt_images", 1)
+							}
+						},
+						supports: {
+							parallel_tool_calls: fast_config.get("capabilities.supports.parallel_tool_calls", true),
+							streaming: fast_config.get("capabilities.supports.streaming", true),
+							tool_calls: fast_config.get("capabilities.supports.tool_calls", true),
+							vision: fast_config.get("capabilities.supports.vision", true)
+						},
+					},
+					billing: {
+						is_premium: true,
+						multiplier: 1
+					},
+				}
+			];
 
             const extras = workspace.getConfiguration('github.copilot.hackModels').get('extras', []) as IModelAPIResponse[];
             for (var i = 0; i < extras.length; i++) {
@@ -900,9 +1257,106 @@
     }
     ```
 
-## 模型界面刷新
+## 模型刷新
 
-需要 Ai 实现  `src\platform\endpoint\node\modelMetadataFetcher.ts` 中的 `this._onDidModelRefresh.fire()` 触发 `src\extension\conversation\vscode-node\languageModelAccess.ts` 中的 `this._onDidChange.fire()` ，实现 language Models 界面刷新
+### 模型管理界面
+
+在 `src\platform\endpoint\node\modelMetadataFetcher.ts` 的 `ModelMetadataFetcher` 的构造函数中添加
+
+```ts
+this._register(workspace.onDidChangeConfiguration(async e => {
+    if (e.affectsConfiguration('github.copilot.hackModels')) {
+        await this._fetchModels(true);
+    }
+}));
+```
+
+触发 `src\extension\prompt\vscode-node\endpointProviderImpl.ts` 中 `ProductionEndpointProvider` 构造器里注册的事件
+
+```ts
+    // When new models come in from CAPI we want to clear our local caches and let the endpoints be recreated since there may be new info
+    this._modelFetcher.onDidModelsRefresh(() => {
+        this._chatEndpoints.clear();
+        // Notify Language Model UI to refresh the model list
+        this._onDidModelsRefresh.fire();
+    });
+```
+
+ 触发 `src\extension\conversation\vscode-node\languageModelAccess.ts` 中 `LanguageModelAccess` 构造器里注册事件
+
+```ts
+// Listen to endpoint provider model refresh events to update the Language Models UI
+if (this._endpointProvider.onDidModelsRefresh) {
+    this._register(this._endpointProvider.onDidModelsRefresh(() => {
+        this._logService.debug('[LanguageModelAccess] Models refreshed, updating Language Models UI');
+        this._onDidChange.fire();
+    }));
+}
+```
+
+实现 language Models 界面刷新
+
+ ### claude 模型
+
+- 文件 `src\extension\agents\claude\node\claudeCodeModels.ts`
+- 类 `ClaudeCodeModels`
+- 修改
+
+```ts
+public async getModels(): Promise<ClaudeCodeModelInfo[]> {
+    return this._getAvailableModels();
+}
+```
+
+- 文件 `src\extension\chatSessions\vscode-node\claudeChatSessionContentProvider.ts`
+- 位置 `ClaudeChatSessionContentProvider`
+- 修改
+
+```ts
+constructor(
+    @IEndpointProvider private readonly endpointProvider: IEndpointProvider,
+    @IClaudeCodeSessionService private readonly sessionService: IClaudeCodeSessionService,
+    @IClaudeCodeModels private readonly claudeCodeModels: IClaudeCodeModels,
+    @IClaudeSessionStateService private readonly sessionStateService: IClaudeSessionStateService,
+    @IConfigurationService private readonly configurationService: IConfigurationService,
+) {
+    super();
+
+    // 重新加载模型
+    if (this.endpointProvider.onDidModelsRefresh) {
+        this.endpointProvider.onDidModelsRefresh(() => {
+            this._onDidChangeChatSessionProviderOptions.fire();
+        });
+    }
+
+    // Listen for configuration changes to update available options
+    this._register(this.configurationService.onDidChangeConfiguration(e => {
+        if (e.affectsConfiguration(ConfigKey.ClaudeAgentAllowDangerouslySkipPermissions.fullyQualifiedId)) {
+            this._onDidChangeChatSessionProviderOptions.fire();
+        }
+    }));
+
+    // Listen for state changes and notify UI only if value actually changed
+    this._register(this.sessionStateService.onDidChangeSessionState(e => {
+        const lastKnown = this._lastKnownOptions.get(e.sessionId);
+        const updates: { optionId: string; value: string }[] = [];
+
+        if (e.modelId !== undefined && e.modelId !== lastKnown?.modelId) {
+            updates.push({ optionId: MODELS_OPTION_ID, value: e.modelId });
+            this._updateLastKnown(e.sessionId, { modelId: e.modelId });
+        }
+        if (e.permissionMode !== undefined && e.permissionMode !== lastKnown?.permissionMode) {
+            updates.push({ optionId: PERMISSION_MODE_OPTION_ID, value: e.permissionMode });
+            this._updateLastKnown(e.sessionId, { permissionMode: e.permissionMode });
+        }
+
+        if (updates.length > 0) {
+            const resource = ClaudeSessionUri.forSessionId(e.sessionId);
+            this._onDidChangeChatSessionOptions.fire({ resource, updates });
+        }
+    }));
+}
+```
 
 ## autoMode
 

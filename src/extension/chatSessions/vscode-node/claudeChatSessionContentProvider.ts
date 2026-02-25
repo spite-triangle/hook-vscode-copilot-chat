@@ -7,6 +7,7 @@ import { PermissionMode, SDKAssistantMessage, SDKMessage } from '@anthropic-ai/c
 import Anthropic from '@anthropic-ai/sdk';
 import * as l10n from '@vscode/l10n';
 import * as vscode from 'vscode';
+import { IEndpointProvider } from '../../../lib/node/chatLibMain';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { coalesce } from '../../../util/vs/base/common/arrays';
 import { Emitter } from '../../../util/vs/base/common/event';
@@ -40,12 +41,19 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 	private readonly _lastKnownOptions = new Map<string, { modelId?: string; permissionMode?: PermissionMode }>();
 
 	constructor(
+		@IEndpointProvider private readonly endpointProvider: IEndpointProvider,
 		@IClaudeCodeSessionService private readonly sessionService: IClaudeCodeSessionService,
 		@IClaudeCodeModels private readonly claudeCodeModels: IClaudeCodeModels,
 		@IClaudeSessionStateService private readonly sessionStateService: IClaudeSessionStateService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
+
+		if (this.endpointProvider.onDidModelsRefresh) {
+			this.endpointProvider.onDidModelsRefresh(() => {
+				this._onDidChangeChatSessionProviderOptions.fire();
+			});
+		}
 
 		// Listen for configuration changes to update available options
 		this._register(this.configurationService.onDidChangeConfiguration(e => {

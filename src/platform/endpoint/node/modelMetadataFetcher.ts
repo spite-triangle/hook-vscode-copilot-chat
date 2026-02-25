@@ -149,7 +149,7 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 		if (isChatModelInformation(resolvedModel) && (resolvedModel.capabilities.limits)) {
 			resolvedModel.capabilities.limits.max_prompt_tokens = this._getMaxPromptTokensOverride(resolvedModel);
 			// Also ensure prompt tokens + output tokens <= context window. Output tokens is capped to max 15% input tokens
-			const outputTokens = Math.floor(Math.min(resolvedModel.capabilities.limits.max_output_tokens ?? 4096, resolvedModel.capabilities.limits.max_prompt_tokens * 0.15));
+			const outputTokens = Math.floor(Math.min(resolvedModel.capabilities.limits.max_output_tokens ?? 4096, resolvedModel.capabilities.limits.max_prompt_tokens * 0.25));
 			const contextWindow = resolvedModel.capabilities.limits.max_context_window_tokens ?? (outputTokens + resolvedModel.capabilities.limits.max_prompt_tokens);
 			resolvedModel.capabilities.limits.max_prompt_tokens = Math.min(resolvedModel.capabilities.limits.max_prompt_tokens, contextWindow - outputTokens);
 		}
@@ -353,8 +353,8 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 						tokenizer: base_config.get("capabilities.tokenizer", TokenizerType.O200K),
 						limits: {
 							max_context_window_tokens: base_config.get("capabilities.limits.max_context_window_tokens", 128000),
-							max_output_tokens: base_config.get("capabilities.limits.max_output_tokens", 64000),
-							max_prompt_tokens: base_config.get("capabilities.limits.max_prompt_tokens", 128000),
+							max_output_tokens: base_config.get("capabilities.limits.max_output_tokens", Math.floor(base_config.get("capabilities.limits.max_context_window_tokens", 128000) * 0.25)),
+							max_prompt_tokens: base_config.get("capabilities.limits.max_prompt_tokens", Math.floor(base_config.get("capabilities.limits.max_context_window_tokens", 128000) * 0.5)),
 							vision: {
 								max_prompt_images: base_config.get("capabilities.limits.vision.max_prompt_images", 1)
 							}
@@ -444,8 +444,8 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 						tokenizer: fast_config.get("capabilities.tokenizer", TokenizerType.O200K),
 						limits: {
 							max_context_window_tokens: fast_config.get("capabilities.limits.max_context_window_tokens", 128000),
-							max_output_tokens: fast_config.get("capabilities.limits.max_output_tokens", 64000),
-							max_prompt_tokens: fast_config.get("capabilities.limits.max_prompt_tokens", 128000),
+							max_output_tokens: fast_config.get("capabilities.limits.max_output_tokens", Math.floor(base_config.get("capabilities.limits.max_context_window_tokens", 128000) * 0.25)),
+							max_prompt_tokens: fast_config.get("capabilities.limits.max_prompt_tokens", Math.floor(base_config.get("capabilities.limits.max_context_window_tokens", 128000) * 0.5)),
 							vision: {
 								max_prompt_images: fast_config.get("capabilities.limits.vision.max_prompt_images", 1)
 							}
@@ -480,8 +480,8 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 						tokenizer: fast_config.get("capabilities.tokenizer", TokenizerType.O200K),
 						limits: {
 							max_context_window_tokens: fast_config.get("capabilities.limits.max_context_window_tokens", 128000),
-							max_output_tokens: fast_config.get("capabilities.limits.max_output_tokens", 64000),
-							max_prompt_tokens: fast_config.get("capabilities.limits.max_prompt_tokens", 128000),
+							max_output_tokens: fast_config.get("capabilities.limits.max_output_tokens", Math.floor(base_config.get("capabilities.limits.max_context_window_tokens", 128000) * 0.25)),
+							max_prompt_tokens: fast_config.get("capabilities.limits.max_prompt_tokens", Math.floor(base_config.get("capabilities.limits.max_context_window_tokens", 128000) * 0.5)),
 							vision: {
 								max_prompt_images: fast_config.get("capabilities.limits.vision.max_prompt_images", 1)
 							}

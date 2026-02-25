@@ -2,7 +2,7 @@
 	"name": "copilot-chat",
 	"displayName": "GitHub Copilot Chat",
 	"description": "AI chat features powered by Copilot",
-	"version": "0.37.260213",
+	"version": "0.37.260225",
 	"build": "1",
 	"internalAIKey": "1058ec22-3c95-4951-8443-f26c1f325911",
 	"completionsCoreVersion": "1.378.1799",
@@ -3002,16 +3002,14 @@
 												"type": "object",
 												"properties": {
 													"max_prompt_tokens": {
-														"type": "number",
-														"default": 128000
+														"type": "number"
 													},
 													"max_output_tokens": {
-														"type": "number",
-														"default": 64000
+														"type": "number"
 													},
 													"max_context_window_tokens": {
 														"type": "number",
-														"default": 264000
+														"default": 128000
 													},
 													"vision": {
 														"type": "object",
@@ -3225,16 +3223,14 @@
 												"type": "object",
 												"properties": {
 													"max_prompt_tokens": {
-														"type": "number",
-														"default": 128000
+														"type": "number"
 													},
 													"max_output_tokens": {
-														"type": "number",
-														"default": 64000
+														"type": "number"
 													},
 													"max_context_window_tokens": {
 														"type": "number",
-														"default": 264000
+														"default": 128000
 													},
 													"vision": {
 														"type": "object",
@@ -3425,16 +3421,14 @@
 												"type": "object",
 												"properties": {
 													"max_prompt_tokens": {
-														"type": "number",
-														"default": 128000
+														"type": "number"
 													},
 													"max_output_tokens": {
-														"type": "number",
-														"default": 64000
+														"type": "number"
 													},
 													"max_context_window_tokens": {
 														"type": "number",
-														"default": 264000
+														"default": 128000
 													},
 													"vision": {
 														"type": "object",
@@ -3582,16 +3576,14 @@
 													"type": "object",
 													"properties": {
 														"max_prompt_tokens": {
-															"type": "number",
-															"default": 128000
+															"type": "number"
 														},
 														"max_output_tokens": {
-															"type": "number",
-															"default": 64000
+															"type": "number"
 														},
 														"max_context_window_tokens": {
 															"type": "number",
-															"default": 264000
+															"default": 128000
 														},
 														"vision": {
 															"type": "object",

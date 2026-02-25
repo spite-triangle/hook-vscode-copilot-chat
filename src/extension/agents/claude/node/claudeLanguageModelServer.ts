@@ -418,7 +418,7 @@ class ClaudeStreamingPassThroughEndpoint implements IChatEndpoint {
 		if (typeof baseUrl === 'string') {
 			return baseUrl;
 		}
-		return { type: RequestType.ChatMessages };
+		return { type: RequestType.ChatMessages, baseUrl: baseUrl.baseUrl, apiKey: baseUrl.apiKey, model: baseUrl.model };
 	}
 
 	public getExtraHeaders(): Record<string, string> {

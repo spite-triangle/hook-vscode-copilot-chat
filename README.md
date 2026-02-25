@@ -13,7 +13,8 @@
 可使用第三方模型替换 `vscode copilot` 底层模型，实现 `copilot` 本地离线使用。
 - 替换所有后台模型接口，兼容 `OpenAi API`。**若功能效果不佳，请尝试更换模型，部分模型为微软定制，而修改使用 `OpenAI` 强行兼容，具体兼容效果依赖大模型能力**
 - **不建议与原插件共存使用，可能有兼容性问题。**
-- 配置参数
+
+## 配置
 
 ```json
 "github.copilot.hackModels": {
@@ -94,6 +95,68 @@
     ]
 }
 ```
+
+针对 `base`、`fast`、`next` 模型，推荐的 `token` 配置如下
+- 模型上下文 `128k`
+    ```json
+        "limits": {
+            "max_context_window_tokens": 128000,
+            "max_output_tokens": 4096,
+            "max_prompt_tokens": 63988
+        }
+    ```
+- 模型上下文 `264k`
+    ```json
+        "limits": {
+            "max_context_window_tokens": 264000,
+            "max_output_tokens": 64000,
+            "max_prompt_tokens": 127988
+        }
+    ```
+
+## claude
+
+在 `github.copilot.hackModels.extras` 中配置 `claude` 模型，便能使用 `copilot` 插件集成的 `claude agent`。
+
+```json
+    "extras":[
+        {
+            "apiKey": "",
+            "baseUrl": "",
+            "model": "claude-haiku-45",             // 模型命名格式: claude-<type>[-version][-other]
+                                                    //   type 支持：haiku, sonnect, opus
+            "is_chat_default": true,
+            "capabilities": {
+                "type": "chat",
+                "family": "claude-haiku-45"         // 同 model
+            },
+            "supported_endpoints": [                // 必须支持 /v1/messages
+                "/v1/messages"
+            ]
+        }
+    ]
+```
+
+使用 [claude-code-proxy](https://github.com/1rgs/claude-code-proxy) 创建的代理服务时，**不需要添加任何环境变量**，只需按照如下规则配置即可
+
+```json
+    "extras":[
+        {
+            "apiKey": "your-anthropic-api-key",     // proxy 中配置的 ANTHROPIC_API_KEY
+            "baseUrl": "http://localhost:8082/v1",  // claude-code-proxy 的 url ，且必须添加 '/v1' 子路径
+            "model": "claude-haiku-45",             // 参考命名格式瞎写一个即可
+            "is_chat_default": true,
+            "capabilities": {
+                "type": "chat",
+                "family": "claude-haiku-45"         // 同 model
+            },
+            "supported_endpoints": [                // 必须支持 /v1/messages
+                "/v1/messages"
+            ]
+        }
+    ]
+```
+
 
 ## 叠甲声明
 
