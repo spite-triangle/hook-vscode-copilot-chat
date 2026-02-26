@@ -124,7 +124,7 @@
             "apiKey": "",
             "baseUrl": "",
             "model": "claude-haiku-45",             // 模型命名格式: claude-<type>[-version][-other]
-                                                    //   type 支持：haiku, sonnect, opus
+                                                    //   type 支持：haiku, sonnect
             "is_chat_default": true,
             "capabilities": {
                 "type": "chat",
@@ -136,6 +136,9 @@
         }
     ]
 ```
+
+>[!note]
+> 建议不要使用 `opus` 系列，可能失败
 
 使用 [claude-code-proxy](https://github.com/1rgs/claude-code-proxy) 创建的代理服务时，**不需要添加任何环境变量**，只需按照如下规则配置即可
 

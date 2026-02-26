@@ -344,7 +344,7 @@ function networkRequest(
 			case RequestType.CAPIEmbeddings: url += "/embeddings"; break;
 			case RequestType.ChatCompletions: url += "/chat/completions"; break;
 			case RequestType.ChatResponses: url += "/responses"; break;
-			case RequestType.ChatMessages: url += "/v1/messages"; break;
+			case RequestType.ChatMessages: url += "/messages"; break;
 			default:
 				url = undefined;
 		}
