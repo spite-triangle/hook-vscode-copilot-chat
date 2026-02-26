@@ -138,7 +138,6 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			return;
 		}
 
-		// Listen to endpoint provider model refresh events to update the Language Models UI
 		if (this._endpointProvider.onDidModelsRefresh) {
 			this._register(this._endpointProvider.onDidModelsRefresh(() => {
 				this._logService.debug('[LanguageModelAccess] Models refreshed, updating Language Models UI');

@@ -6,7 +6,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { IEndpointProvider } from '../../../../../platform/endpoint/common/endpointProvider';
 import { IChatEndpoint } from '../../../../../platform/networking/common/networking';
-import { Emitter } from '../../../../../util/vs/base/common/event';
 import { DisposableStore } from '../../../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionUnitTestingServices } from '../../../../test/node/services';
@@ -57,16 +56,10 @@ function createMockEndpoint(overrides: {
 class MockEndpointProvider implements IEndpointProvider {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidModelsRefresh = new Emitter<void>();
-
 	constructor(private readonly endpoints: IChatEndpoint[]) { }
 
 	async getAllChatEndpoints(): Promise<IChatEndpoint[]> {
 		return this.endpoints;
-	}
-
-	get onDidModelsRefresh() {
-		return this._onDidModelsRefresh.event;
 	}
 
 	// Not used in ClaudeCodeModels tests

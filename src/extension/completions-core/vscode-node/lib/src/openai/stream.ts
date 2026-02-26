@@ -620,16 +620,13 @@ export class SSEProcessor {
 	}
 }
 
-
 export function prepareSolutionForReturn(
 	accessor: ServicesAccessor,
 	c: FinishedCompletion,
 	telemetryData: TelemetryWithExp
 ): APIChoice {
 	const logTarget = accessor.get(ICompletionsLogTargetService);
-
-	let completionText = c.solution.text.join('')
-	streamChoicesLogger.info(logTarget, completionText);
+	let completionText = c.solution.text.join('');
 
 	let blockFinished = false;
 	if (c.finishOffset !== undefined) {

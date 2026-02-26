@@ -7,8 +7,8 @@ import { PermissionMode, SDKAssistantMessage, SDKMessage } from '@anthropic-ai/c
 import Anthropic from '@anthropic-ai/sdk';
 import * as l10n from '@vscode/l10n';
 import * as vscode from 'vscode';
-import { IEndpointProvider } from '../../../lib/node/chatLibMain';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
+import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { coalesce } from '../../../util/vs/base/common/arrays';
 import { Emitter } from '../../../util/vs/base/common/event';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
@@ -49,6 +49,7 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 	) {
 		super();
 
+		// 重新加载模型
 		if (this.endpointProvider.onDidModelsRefresh) {
 			this.endpointProvider.onDidModelsRefresh(() => {
 				this._onDidChangeChatSessionProviderOptions.fire();

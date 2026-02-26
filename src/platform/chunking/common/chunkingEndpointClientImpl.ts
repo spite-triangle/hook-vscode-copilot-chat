@@ -301,8 +301,6 @@ export class ChunkingEndpointClientImpl extends Disposable implements IChunkingE
 	private readonly _requestHmac = new Lazy(() => createRequestHMAC(env.HMAC_SECRET));
 
 	constructor(
-		@INaiveChunkingService private readonly naiveChunkingService: INaiveChunkingService,
-		@IEmbeddingsComputer private readonly embeddingsComputer: IEmbeddingsComputer,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ICAPIClientService private readonly _capiClientService: ICAPIClientService,
 		@IEnvService private readonly _envService: IEnvService,
@@ -310,6 +308,8 @@ export class ChunkingEndpointClientImpl extends Disposable implements IChunkingE
 		@ILogService private readonly _logService: ILogService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IWorkspaceService private readonly _workspaceService: IWorkspaceService,
+		@INaiveChunkingService private readonly naiveChunkingService: INaiveChunkingService,
+		@IEmbeddingsComputer private readonly embeddingsComputer: IEmbeddingsComputer,
 	) {
 		super();
 

@@ -9,7 +9,7 @@ import { generateUuid } from '../../../../../../util/vs/base/common/uuid';
 import { ServicesAccessor } from '../../../../../../util/vs/platform/instantiation/common/instantiation';
 import { DEFAULT_MAX_COMPLETION_LENGTH } from '../../../prompt/src/prompt';
 import { logger } from '../logger';
-import { TelemetryWithExp } from '../telemetry';
+import { TelemetryWithExp, logEngineCompletion } from '../telemetry';
 import { ICompletionsRuntimeModeService } from '../util/runtimeMode';
 
 export { FinishedCallback } from './fetch';

@@ -45,106 +45,6 @@ export class RemoteEmbeddingsComputer implements IEmbeddingsComputer {
 		@IEndpointProvider private readonly _endpointProvider: IEndpointProvider,
 	) { }
 
-	// public async computeEmbeddings(
-	// 	embeddingType: EmbeddingType,
-	// 	inputs: readonly string[],
-	// 	options?: ComputeEmbeddingsOptions,
-	// 	telemetryInfo?: TelemetryCorrelationId,
-	// 	cancellationToken?: CancellationToken,
-	// ): Promise<Embeddings> {
-	// 	return logExecTime(this._logService, 'RemoteEmbeddingsComputer::computeEmbeddings', async () => {
-
-	// 		// Determine endpoint type: use CAPI for no-auth users, otherwise use GitHub
-	// 		const copilotToken = await this._authService.getCopilotToken();
-	// 		if (copilotToken.isNoAuthUser) {
-	// 			const embeddings = await this.computeCAPIEmbeddings(inputs, options, cancellationToken);
-	// 			return embeddings ?? { type: embeddingType, values: [] };
-	// 		}
-
-	// 		const token = (await this._authService.getGitHubSession('any', { silent: true }))?.accessToken;
-	// 		if (!token) {
-	// 			throw new Error('No authentication token available');
-	// 		}
-
-	// 		const embeddingsOut: Embedding[] = [];
-	// 		for (let i = 0; i < inputs.length; i += this.batchSize) {
-	// 			const batch = inputs.slice(i, i + this.batchSize);
-	// 			if (!batch.length) {
-	// 				break;
-	// 			}
-
-	// 			const body: {
-	// 				inputs: readonly string[];
-	// 				input_type: 'document' | 'query';
-	// 				embedding_model: string;
-	// 			} = {
-	// 				inputs: batch,
-	// 				input_type: options?.inputType ?? 'document',
-	// 				embedding_model: embeddingType.id,
-	// 			};
-	// 			const response = await postRequest(
-	// 				this._fetcherService,
-	// 				this._telemetryService,
-	// 				this._capiClientService,
-	// 				{ type: RequestType.DotcomEmbeddings },
-	// 				token,
-	// 				await createRequestHMAC(env.HMAC_SECRET),
-	// 				'copilot-panel',
-	// 				generateUuid(),
-	// 				body as any,
-	// 				getGithubMetadataHeaders(telemetryInfo?.callTracker ?? new CallTracker(), this._envService),
-	// 				cancellationToken
-	// 			);
-	// 			if (!response.ok) {
-	// 				/* __GDPR__
-	// 					"remoteEmbeddingsComputer.computeEmbeddings.error" : {
-	// 						"owner": "mjbvz",
-	// 						"comment": "Total time for searchFileChunks to complete",
-	// 						"source": { "classification": "SystemMetaData", "purpose": "FeatureInsight",  "comment": "Caller" },
-	// 						"correlationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight",  "comment": "Correlation id" },
-	// 						"embeddingType": { "classification": "SystemMetaData", "purpose": "FeatureInsight",  "comment": "Embedding type" },
-	// 						"totalInputLength": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total length of the input" },
-	// 						"batchInputLength": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total length of the batch" },
-	// 						"statusCode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Status code of the response" }
-	// 					}
-	// 				*/
-	// 				this._telemetryService.sendMSFTTelemetryEvent('remoteEmbeddingsComputer.computeEmbeddings.error', {
-	// 					source: telemetryInfo?.callTracker.toString(),
-	// 					correlationId: telemetryInfo?.correlationId,
-	// 					embeddingType: embeddingType.id,
-	// 				}, {
-	// 					totalInputLength: inputs.length,
-	// 					batchInputLength: batch.length,
-	// 					statusCode: response.status,
-	// 				});
-	// 				throw new Error(`Error fetching embeddings: ${response.status}`);
-	// 			}
-
-	// 			type EmbeddingResponse = {
-	// 				embedding_model: string;
-	// 				embeddings: Array<{ embedding: number[] }>;
-	// 			};
-	// 			const jsonResponse: EmbeddingResponse = await response.json();
-
-	// 			const resolvedType = new EmbeddingType(jsonResponse.embedding_model);
-	// 			if (!resolvedType.equals(embeddingType)) {
-	// 				throw new Error(`Unexpected embedding model. Got: ${resolvedType}. Expected: ${embeddingType}`);
-	// 			}
-
-	// 			if (batch.length !== jsonResponse.embeddings.length) {
-	// 				throw new Error(`Mismatched embedding result count. Expected: ${batch.length}. Got: ${jsonResponse.embeddings.length}`);
-	// 			}
-
-	// 			embeddingsOut.push(...jsonResponse.embeddings.map(embedding => ({
-	// 				type: resolvedType,
-	// 				value: embedding.embedding,
-	// 			})));
-	// 		}
-
-	// 		return { type: embeddingType, values: embeddingsOut };
-	// 	});
-	// }
-
 	public async computeEmbeddings(
 		embeddingType: EmbeddingType,
 		inputs: readonly string[],
@@ -153,6 +53,7 @@ export class RemoteEmbeddingsComputer implements IEmbeddingsComputer {
 		cancellationToken?: CancellationToken,
 	): Promise<Embeddings> {
 		return logExecTime(this._logService, 'RemoteEmbeddingsComputer::computeEmbeddings', async () => {
+			// NOTE - 使用 openai 实现替换
 			const embeddings = await this.computeCAPIEmbeddings(inputs, options, cancellationToken);
 			return embeddings ?? { type: embeddingType, values: [] };
 		});
@@ -275,6 +176,8 @@ export class RemoteEmbeddingsComputer implements IEmbeddingsComputer {
 		cancellationToken: CancellationToken | undefined
 	): Promise<CAPIEmbeddingResults | CAPIEmbeddingError> {
 		try {
+			const token = await this._authService.getCopilotToken();
+
 			const body = { input: inputs, model: type.model, dimensions: type.dimensions };
 			endpoint.interceptBody?.(body);
 			const response = await postRequest(
@@ -282,7 +185,7 @@ export class RemoteEmbeddingsComputer implements IEmbeddingsComputer {
 				this._telemetryService,
 				this._capiClientService,
 				endpoint,
-				'',
+				token.token,
 				await createRequestHMAC(env.HMAC_SECRET),
 				'copilot-panel',
 				requestId,

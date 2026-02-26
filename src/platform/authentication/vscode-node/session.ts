@@ -20,39 +20,6 @@ export type CopilotAuthenticationSession = {
 	account: CopilotAuthenticationSessionAccountInformation;
 };
 
-// async function getAuthSession(providerId: string, defaultScopes: string[], getSilentSession: () => Promise<AuthenticationSession | undefined>, options: AuthenticationGetSessionOptions = {}) {
-// 	const accounts = await authentication.getAccounts(providerId);
-// 	if (!accounts.length) {
-// 		return await authentication.getSession(providerId, defaultScopes, options);
-// 	}
-
-// 	if (options.forceNewSession) {
-// 		const session = await authentication.getSession(providerId, defaultScopes, {
-// 			...options,
-// 			forceNewSession: mixin({ learnMore: URI.parse('https://aka.ms/copilotRepoScope') }, options.forceNewSession),
-// 			// When GitHub becomes a true multi-account provider, we won't have to clearSessionPreference.
-// 			clearSessionPreference: true
-// 		});
-// 		return session;
-// 	}
-
-// 	const silentSession = await getSilentSession();
-// 	if (silentSession) {
-// 		return silentSession;
-// 	}
-
-// 	if (options.createIfNone) {
-// 		// This will force GitHub auth to present a picker to choose which account you want to log in to if there
-// 		// are multiple accounts.
-// 		// When GitHub becomes a true multi-account provider, we can change this to just createIfNone: true.
-// 		const session = await authentication.getSession(providerId, defaultScopes, { forceNewSession: { learnMore: URI.parse('https://aka.ms/copilotRepoScope') }, clearSessionPreference: true });
-// 		return session;
-// 	}
-// 	// Pass the options in as they are
-
-// 	return await authentication.getSession(providerId, defaultScopes, options);
-// }
-
 async function getAuthSession(providerId: string, defaultScopes: string[], getSilentSession: () => Promise<AuthenticationSession | undefined>, options: AuthenticationGetSessionOptions = {}) {
 	return {
 		id: '855414255f361cfd',

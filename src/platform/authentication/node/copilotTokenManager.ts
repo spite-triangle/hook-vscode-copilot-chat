@@ -153,110 +153,6 @@ export abstract class BaseCopilotTokenManager extends Disposable implements ICop
 		return this.doAuthFromGitHubTokenOrDevDeviceId({ devDeviceId });
 	}
 
-	// private async doAuthFromGitHubTokenOrDevDeviceId(
-	// 	context: { githubToken: string; ghUsername: string } | { devDeviceId: string }
-	// ): Promise<TokenInfoOrError & NotGitHubLoginFailed> {
-	// 	this._telemetryService.sendGHTelemetryEvent('auth.new_login');
-
-	// 	let result: FetchTokenResult;
-	// 	let userInfo: CopilotUserInfo | undefined;
-	// 	let ghUsername: string | undefined;
-	// 	try {
-	// 		if ('githubToken' in context) {
-	// 			ghUsername = context.ghUsername;
-	// 			[result, userInfo] = (await Promise.all([
-	// 				this.fetchCopilotTokenFromGitHubToken(context.githubToken),
-	// 				this.fetchCopilotUserInfo(context.githubToken)
-	// 			]));
-	// 		} else {
-	// 			result = await this.fetchCopilotTokenFromDevDeviceId(context.devDeviceId);
-	// 		}
-	// 	} catch (e) {
-	// 		this._logService.warn('Failed to get copilot token due to fetch throwing: ' + (e.message || String(e)));
-	// 		return { kind: 'failure', reason: 'RequestFailed', message: e.message || String(e) };
-	// 	}
-
-	// 	// Handle HTTP errors
-	// 	if (!result.ok) {
-	// 		this._logService.warn(`Failed to get copilot token due to status ${result.status} ${result.statusText}`);
-	// 		const data = TelemetryData.createAndMarkAsIssued({
-	// 			status: result.status.toString(),
-	// 			status_text: result.statusText,
-	// 		});
-	// 		this._telemetryService.sendGHTelemetryErrorEvent('auth.invalid_token', data.properties, data.measurements);
-	// 		// TODO: Look at telemetry to see if this even happens
-	// 		// because looking at the backend code, 401s aren't expected here
-	// 		if (result.status === 401) {
-	// 			this._logService.warn('Failed to get copilot token due to 401 status');
-	// 			this._telemetryService.sendGHTelemetryErrorEvent('auth.unknown_401');
-	// 			return { kind: 'failure', reason: 'HTTP401' };
-	// 		}
-	// 	}
-
-	// 	// Copilot Errors
-	// 	if (result.kind === 'error-envelope') {
-	// 		this._logService.warn(`Failed to get copilot token due to: ${result.body.error_details.message}`);
-	// 		this._telemetryService.sendGHTelemetryErrorEvent('auth.request_read_failed');
-	// 		return { kind: 'failure', reason: 'NotAuthorized', ...result.body.error_details };
-	// 	}
-
-	// 	// Standard Errors like rate limiting
-	// 	if (result.kind === 'error') {
-	// 		if (result.body.message?.startsWith('API rate limit exceeded')) {
-	// 			this._logService.warn('Failed to get copilot token due to exceeding API rate limit');
-	// 			this._telemetryService.sendGHTelemetryErrorEvent('auth.rate_limited');
-	// 			return { kind: 'failure', reason: 'RateLimited' };
-	// 		}
-	// 		this._logService.warn(`Failed to get copilot token due to: ${result.body.message}`);
-	// 		return { kind: 'failure', reason: 'NotAuthorized' };
-	// 	}
-
-	// 	// Parse errors
-	// 	if (result.kind === 'parse-failed') {
-	// 		this._logService.warn(`Failed to get copilot token due to: ${result.parseError}`);
-	// 		this._telemetryService.sendGHTelemetryErrorEvent('auth.request_read_failed');
-	// 		return { kind: 'failure', reason: 'ParseFailed', message: result.parseError };
-	// 	}
-
-	// 	// Success - we have a validated TokenEnvelope
-	// 	const tokenInfo = result.body;
-
-	// 	const expires_at = tokenInfo.expires_at;
-	// 	// some users have clocks adjusted ahead, expires_at will immediately be less than current clock time;
-	// 	// adjust expires_at to the refresh time + a buffer to avoid expiring the token before the refresh can fire.
-	// 	tokenInfo.expires_at = nowSeconds() + tokenInfo.refresh_in + 60; // extra buffer to allow refresh to happen successfully
-
-	// 	// extend the token envelope
-	// 	const login = ghUsername ?? 'unknown';
-	// 	let isVscodeTeamMember = false;
-	// 	// VS Code team members are guaranteed to be a part of an internal org so we can check that first to minimize API calls
-	// 	if (containsInternalOrg(tokenInfo.organization_list ?? []) && 'githubToken' in context) {
-	// 		isVscodeTeamMember = !!(await this._baseOctokitservice.getTeamMembershipWithToken(VSCodeTeamId, context.githubToken, login));
-	// 	}
-	// 	const extendedInfo: ExtendedTokenInfo = {
-	// 		...tokenInfo,
-	// 		copilot_plan: userInfo?.copilot_plan ?? tokenInfo.sku ?? '',
-	// 		quota_snapshots: userInfo?.quota_snapshots,
-	// 		quota_reset_date: userInfo?.quota_reset_date,
-	// 		codex_agent_enabled: userInfo?.codex_agent_enabled,
-	// 		organization_login_list: userInfo?.organization_login_list ?? [],
-	// 		username: login,
-	// 		isVscodeTeamMember,
-	// 	};
-	// 	const telemetryData = TelemetryData.createAndMarkAsIssued(
-	// 		{},
-	// 		{
-	// 			adjusted_expires_at: tokenInfo.expires_at,
-	// 			expires_at: expires_at, // track original expires_at
-	// 			current_time: nowSeconds(),
-	// 		}
-	// 	);
-
-	// 	this._telemetryService.sendGHTelemetryEvent('auth.new_token', telemetryData.properties, telemetryData.measurements);
-
-	// 	return { kind: 'success', ...extendedInfo };
-	// }
-
 	private async doAuthFromGitHubTokenOrDevDeviceId(
 		context: { githubToken: string; ghUsername: string } | { devDeviceId: string }
 	): Promise<TokenInfoOrError & NotGitHubLoginFailed> {
@@ -266,8 +162,8 @@ export abstract class BaseCopilotTokenManager extends Disposable implements ICop
 		const tokenInfo: TokenEnvelope = {
 			// Required fields
 			token: "tid=70b36c9e-ea08-48c2-b28e-0dd535b39982",
-			expires_at: 2147483647,
-			refresh_in: 1500,
+			expires_at: 2770033513,
+			refresh_in: 1500000,
 			sku: "copilot_for_business_seat_quota",
 			individual: false,
 
@@ -299,7 +195,6 @@ export abstract class BaseCopilotTokenManager extends Disposable implements ICop
 
 		tokenInfo.expires_at = nowSeconds() + tokenInfo.refresh_in + 60; // extra buffer to allow refresh to happen successfully
 
-
 		// extend the token envelope
 		const login = 'gust';
 		let isVscodeTeamMember = false;
@@ -323,6 +218,7 @@ export abstract class BaseCopilotTokenManager extends Disposable implements ICop
 	//#endregion
 
 	//#region Private methods
+	// Currently disabled - using hardcoded token in doAuthFromGitHubTokenOrDevDeviceId
 	private async fetchCopilotTokenFromGitHubToken(githubToken: string): Promise<FetchTokenResult> {
 		const options: FetchOptions = {
 			headers: {
@@ -336,6 +232,7 @@ export abstract class BaseCopilotTokenManager extends Disposable implements ICop
 		return this.parseTokenResponse(response);
 	}
 
+	// Currently disabled - using hardcoded token in doAuthFromGitHubTokenOrDevDeviceId
 	private async fetchCopilotTokenFromDevDeviceId(devDeviceId: string): Promise<FetchTokenResult> {
 		const options: FetchOptions = {
 			headers: {

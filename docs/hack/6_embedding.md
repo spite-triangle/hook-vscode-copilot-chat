@@ -19,20 +19,6 @@ export type IEmbeddingModelCapabilities = {
 };
 ```
 
-- 文件： `src\platform\chunking\common\chunkingService.ts`
-- 增加全局配置定义
-
-```ts
-export const GlobalChunkingDefaults: {
-	maxTokenLength: number;
-	strategy: string;
-} = {
-	maxTokenLength: 250,
-	strategy: 'token'
-};
-```
-
-
 - 文件 ： `src\platform\endpoint\node\embeddingsEndpoint.ts`
 - 修改 `EmbeddingEndpoint` 类实现
   1. 增加 `GlobalChunkingDefaults` 初始化
@@ -69,6 +55,15 @@ export class EmbeddingEndpoint implements IEmbeddingsEndpoint {
     public get urlOrRequestMetadata(): string | RequestMetadata {
         return { type: RequestType.CAPIEmbeddings, modelId: LEGACY_EMBEDDING_MODEL_ID.TEXT3SMALL, baseUrl: this._modelInfo.baseUrl, apiKey: this._modelInfo.apiKey };
     }
+}
+```
+
+- 文件：`src\platform\chunking\node\naiveChunker.ts`
+- 修改: 创建 `get_max_chunk_size_token` 替换 `MAX_CHUNK_SIZE_TOKENS` 常量
+
+```ts
+export function get_max_chunk_size_token(): number {
+	return GlobalChunkingDefaults.maxTokenLength;
 }
 ```
 
@@ -176,19 +171,9 @@ private async tryInit(silent: boolean): Promise<WorkspaceChunkSearchServiceImpl 
 ### 自定义 naiveChunker 实现
 
 基于 `@chonkiejs/core` 库自定义实现 `naiveChunker`，并将 `docs/hack/chunks` 文件夹下的文件拷贝到指定位置 (文件存在则覆盖)
-- docs\hack\chunks\naiveChunker.ts 拷贝到 src\platform\chunking\node\naiveChunker.ts
-- docs\hack\chunks\chunkingService.ts 拷贝到 src\platform\chunking\common\chunkingService.ts
-- docs\hack\chunks\chunkingServiceImpl.ts 拷贝到 src\platform\chunking\node\chunkingServiceImpl.ts
+1. 根据 `docs\hack\chunks\naiveChunker.ts` 修改 `src\platform\chunking\node\naiveChunker.ts` 实现
+2. 使用 `src\platform\chunking\node\naiveChunker.ts` 中的 `get_max_chunk_size_token` 替换掉所有的 `MAX_CHUNK_SIZE_TOKENS`
 
-
-在 `src\extension\extension\vscode-node\services.ts` 中完成依赖注入注册
-
-```ts
-export function registerServices(...){
-    /* .... */
-    builder.define(IChunkingService, new SyncDescriptor(ChunkingServiceImpl));
-}
-```
 
 ### naiveChunker 集成
 

@@ -300,90 +300,6 @@ export function createCapiRequestBody(options: ICreateEndpointBodyOptions, model
 	return request;
 }
 
-// function networkRequest(
-// 	fetcher: IFetcher,
-// 	telemetryService: ITelemetryService,
-// 	capiClientService: ICAPIClientService,
-// 	requestType: 'GET' | 'POST',
-// 	endpointOrUrl: IEndpoint | string | RequestMetadata,
-// 	secretKey: string,
-// 	intent: string,
-// 	requestId: string,
-// 	body?: IEndpointBody,
-// 	additionalHeaders?: Record<string, string>,
-// 	cancelToken?: CancellationToken,
-// 	useFetcher?: FetcherId,
-// 	canRetryOnce: boolean = true,
-// 	location?: ChatLocation,
-// ): Promise<Response> {
-// 	// TODO @lramos15 Eventually don't even construct this fake endpoint object.
-// 	const endpoint = typeof endpointOrUrl === 'string' || 'type' in endpointOrUrl ? {
-// 		modelMaxPromptTokens: 0,
-// 		urlOrRequestMetadata: endpointOrUrl,
-// 		family: '',
-// 		tokenizer: TokenizerType.O200K,
-// 		acquireTokenizer: () => {
-// 			throw new Error('Method not implemented.');
-// 		},
-// 		name: '',
-// 		version: '',
-// 	} satisfies IEndpoint : endpointOrUrl;
-// 	const headers: ReqHeaders = {
-// 		Authorization: `Bearer ${secretKey}`,
-// 		'X-Request-Id': requestId,
-// 		'X-Interaction-Type': intent,
-// 		'OpenAI-Intent': intent, // Tells CAPI who flighted this request. Helps find buggy features
-// 		'X-GitHub-Api-Version': '2025-05-01',
-// 		...additionalHeaders,
-// 		...(endpoint.getExtraHeaders ? endpoint.getExtraHeaders(location) : {}),
-// 	};
-
-// 	if (endpoint.interceptBody) {
-// 		endpoint.interceptBody(body);
-// 	}
-
-// 	const endpointFetchOptions = endpoint.getEndpointFetchOptions?.();
-// 	const request: FetchOptions = {
-// 		method: requestType,
-// 		headers: headers,
-// 		json: body,
-// 		timeout: requestTimeoutMs,
-// 		useFetcher,
-// 		suppressIntegrationId: endpointFetchOptions?.suppressIntegrationId
-// 	};
-
-// 	if (cancelToken) {
-// 		const abort = fetcher.makeAbortController();
-// 		cancelToken.onCancellationRequested(() => {
-// 			// abort the request when the token is canceled
-// 			telemetryService.sendGHTelemetryEvent('networking.cancelRequest', {
-// 				headerRequestId: requestId,
-// 			});
-// 			abort.abort();
-// 		});
-// 		// pass the controller abort signal to the request
-// 		request.signal = abort.signal;
-// 	}
-// 	if (typeof endpoint.urlOrRequestMetadata === 'string') {
-// 		const requestPromise = fetcher.fetch(endpoint.urlOrRequestMetadata, request).catch(reason => {
-// 			if (canRetryOnce && canRetryOnceNetworkError(reason)) {
-// 				// disconnect and retry the request once if the connection was reset
-// 				telemetryService.sendGHTelemetryEvent('networking.disconnectAll');
-// 				return fetcher.disconnectAll().then(() => {
-// 					return fetcher.fetch(endpoint.urlOrRequestMetadata as string, request);
-// 				});
-// 			} else if (fetcher.isAbortError(reason)) {
-// 				throw new CancellationError();
-// 			} else {
-// 				throw reason;
-// 			}
-// 		});
-// 		return requestPromise;
-// 	} else {
-// 		return capiClientService.makeRequest(request, endpoint.urlOrRequestMetadata as RequestMetadata);
-// 	}
-// }
-
 function networkRequest(
 	fetcher: IFetcher,
 	telemetryService: ITelemetryService,
@@ -413,7 +329,6 @@ function networkRequest(
 		version: '',
 	} satisfies IEndpoint : endpointOrUrl;
 
-
 	let url: string | undefined = undefined;
 	if (typeof endpoint.urlOrRequestMetadata !== 'string'
 		&& endpoint.urlOrRequestMetadata.baseUrl !== undefined
@@ -429,7 +344,7 @@ function networkRequest(
 			case RequestType.CAPIEmbeddings: url += "/embeddings"; break;
 			case RequestType.ChatCompletions: url += "/chat/completions"; break;
 			case RequestType.ChatResponses: url += "/responses"; break;
-			case RequestType.ChatMessages: url += "/messages"; break;
+			case RequestType.ChatMessages: url += "/v1/messages"; break;
 			default:
 				url = undefined;
 		}

@@ -172,6 +172,7 @@ class TerminalQuickFixGenerator {
 
 		const prompt = await promptRenderer.render(undefined, undefined);
 
+		// NOTE - 调整提示词顺序
 		const mapMessages = new Map<Raw.ChatRole, Raw.ChatMessage>();
 		for (var i = 0; i < prompt.messages.length; i++) {
 			const item = prompt.messages[i];
@@ -254,6 +255,7 @@ class TerminalQuickFixGenerator {
 		const prompt = await promptRenderer.render(undefined, undefined);
 		this._logService.debug('_generalTerminalQuickFixFileContext prompt.messages: ' + prompt.messages);
 
+		// NOTE - 调整提示词顺序
 		const mapMessages = new Map<Raw.ChatRole, Raw.ChatMessage>();
 		for (var i = 0; i < prompt.messages.length; i++) {
 			const item = prompt.messages[i];
@@ -279,7 +281,6 @@ class TerminalQuickFixGenerator {
 		for (let item of mapMessages.values()) {
 			prompt.messages.push(item);
 		}
-
 
 		const fetchResult = await endpoint.makeChatRequest(
 			'terminalQuickFixGenerator',

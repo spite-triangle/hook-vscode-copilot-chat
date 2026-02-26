@@ -11,7 +11,6 @@ import { URI } from '../../../util/vs/base/common/uri';
 import { Range } from '../../../util/vs/editor/common/core/range';
 import { ITokenizerProvider, TokenizationEndpoint } from '../../tokenizer/node/tokenizer';
 import { FileChunk } from '../common/chunk';
-import { GlobalChunkingDefaults } from '../common/chunkingService';
 
 // Import individual chunkers from explicit subpath exports to avoid issues with package root resolution.
 // The chonkie package.json defines subpath exports like ./chunker/token, ./chunker/sentence, etc.
@@ -38,11 +37,15 @@ import { GlobalChunkingDefaults } from '../common/chunkingService';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 // const { TokenChunker } = require('chonkie');
 
-/**
- * Resolve the default max chunk size (token length). Reads from environment variable
- * COPILOT_CHAT_MAX_CHUNK_TOKENS if present; falls back to 250.
- * This indirection allows dynamic tuning without code changes.
- */
+export const GlobalChunkingDefaults: {
+	maxTokenLength: number;
+	strategy: string;
+} = {
+	maxTokenLength: 250,
+	strategy: 'token'
+};
+
+// 替换 MAX_CHUNK_SIZE_TOKENS
 export function get_max_chunk_size_token(): number {
 	return GlobalChunkingDefaults.maxTokenLength;
 }

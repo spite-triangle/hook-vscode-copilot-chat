@@ -84,7 +84,6 @@ export class ClaudeCodeModels implements IClaudeCodeModels {
 	}
 
 	public async getModels(): Promise<ClaudeCodeModelInfo[]> {
-		// Cache the result to avoid multiple queries
 		return this._getAvailableModels();
 	}
 

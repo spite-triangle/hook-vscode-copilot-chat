@@ -5,7 +5,7 @@
 
 import { RequestMetadata, RequestType } from '@vscode/copilot-api';
 import { ITokenizer } from '../../../util/common/tokenizer';
-import { GlobalChunkingDefaults } from '../../chunking/common/chunkingService';
+import { GlobalChunkingDefaults } from '../../chunking/node/naiveChunker';
 import { LEGACY_EMBEDDING_MODEL_ID } from '../../embeddings/common/embeddingsComputer';
 import { IEmbeddingsEndpoint } from '../../networking/common/networking';
 import { ITokenizerProvider } from '../../tokenizer/node/tokenizer';
@@ -26,6 +26,8 @@ export class EmbeddingEndpoint implements IEmbeddingsEndpoint {
 	) {
 		this.maxBatchSize = this._modelInfo.capabilities.limits?.max_inputs ?? 256;
 		this.modelMaxPromptTokens = 8192;
+
+		/* 修改全局设置 */
 		GlobalChunkingDefaults.maxTokenLength = this._modelInfo.capabilities.limits?.max_token ?? 256;
 		GlobalChunkingDefaults.strategy = this._modelInfo.capabilities.chunk_strategy ?? 'token';
 	}

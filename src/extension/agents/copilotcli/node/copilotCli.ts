@@ -72,6 +72,7 @@ export class CopilotCLISessionOptions {
 
 	public toSessionOptions(): Readonly<SessionOptions & { requestPermission: NonNullable<SessionOptions['requestPermission']> }> {
 		const allOptions: SessionOptions = {
+			clientName: 'vscode',
 			requestPermission: async (request: PermissionRequest) => {
 				return await this.requestPermissionHandler(request);
 			}
@@ -158,9 +159,8 @@ export class CopilotCLIModels implements ICopilotCLIModels {
 	private async _getAvailableModels(): Promise<CopilotCLIModelInfo[]> {
 		const [{ getAvailableModels }, authInfo] = await Promise.all([this.copilotCLISDK.getPackage(), this.copilotCLISDK.getAuthInfo()]);
 		try {
-			// const models = await getAvailableModels(authInfo);
-			// return models.map(model => ({ id: model.id, name: model.name, multiplier: model.billing?.multiplier }));
-			return [];
+			const models = await getAvailableModels(authInfo);
+			return models.map(model => ({ id: model.id, name: model.name, multiplier: model.billing?.multiplier }));
 		} catch (ex) {
 			this.logService.error(`[CopilotCLISession] Failed to fetch models`, ex);
 			return [];

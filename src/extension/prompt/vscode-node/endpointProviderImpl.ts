@@ -6,6 +6,7 @@
 import { LanguageModelChat, type ChatRequest } from 'vscode';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
+import { Emitter, Event } from '../../../util/vs/base/common/event';
 import { ICAPIClientService } from '../../../platform/endpoint/common/capiClient';
 import { ChatEndpointFamily, EmbeddingsEndpointFamily, IChatModelInformation, ICompletionModelInformation, IEmbeddingModelInformation, IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { AutoChatEndpoint } from '../../../platform/endpoint/node/autoChatEndpoint';
@@ -22,7 +23,6 @@ import { IRequestLogger } from '../../../platform/requestLogger/node/requestLogg
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { TokenizerType } from '../../../util/common/tokenizer';
-import { Emitter, Event } from '../../../util/vs/base/common/event';
 import { IInstantiationService, ServicesAccessor } from '../../../util/vs/platform/instantiation/common/instantiation';
 
 
@@ -34,6 +34,9 @@ export class ProductionEndpointProvider implements IEndpointProvider {
 	private _embeddingEndpoints: Map<string, IEmbeddingsEndpoint> = new Map();
 	private readonly _modelFetcher: IModelMetadataFetcher;
 	private readonly _onDidModelsRefresh = new Emitter<void>();
+	get onDidModelsRefresh(): Event<void> {
+		return this._onDidModelsRefresh.event;
+	}
 
 	constructor(
 		collectFetcherTelemetry: (accessor: ServicesAccessor, error: any) => void,
@@ -71,10 +74,6 @@ export class ProductionEndpointProvider implements IEndpointProvider {
 			// Notify Language Model UI to refresh the model list
 			this._onDidModelsRefresh.fire();
 		});
-	}
-
-	get onDidModelsRefresh(): Event<void> {
-		return this._onDidModelsRefresh.event;
 	}
 
 	private get _overridenChatModel(): string | undefined {

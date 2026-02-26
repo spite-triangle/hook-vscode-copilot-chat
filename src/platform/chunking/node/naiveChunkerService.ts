@@ -19,6 +19,8 @@ interface NaiveChunkingOptions {
 	readonly includeExtraBodyOutsideRange?: boolean; // only gets applied if limitToRange is set
 }
 
+
+
 export interface INaiveChunkingService {
 
 	/**
@@ -26,6 +28,8 @@ export interface INaiveChunkingService {
 	 */
 	chunkFile(endpoint: TokenizationEndpoint, fileUri: Uri, text: string, options: NaiveChunkingOptions, token: CancellationToken): Promise<FileChunk[]>;
 }
+
+
 
 export const INaiveChunkingService = createServiceIdentifier<INaiveChunkingService>('INaiveChunkingService');
 

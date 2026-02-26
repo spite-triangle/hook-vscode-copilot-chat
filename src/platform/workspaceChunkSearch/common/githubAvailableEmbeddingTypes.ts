@@ -65,14 +65,6 @@ export class GithubAvailableEmbeddingTypesService implements IGithubAvailableEmb
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IExperimentationService private readonly _experimentationService: IExperimentationService,
 	) {
-		// this._cached = this._authService.getGitHubSession('any', { silent: true }).then(session => {
-		// 	if (!session) {
-		// 		return Result.error<GetAvailableTypesError>({ type: 'noSession' });
-		// 	}
-
-		// 	return this.doGetAvailableTypes(session.accessToken);
-		// });
-
 		this._cached = (async () => {
 			const primary: EmbeddingType[] = [];
 			const deprecated: EmbeddingType[] = [];
@@ -81,61 +73,8 @@ export class GithubAvailableEmbeddingTypesService implements IGithubAvailableEmb
 		})();
 	}
 
-	// private async getAllAvailableTypes(silent: boolean): Promise<GetAvailableTypesResult> {
-	// 	if (this._cached) {
-	// 		const oldCached = this._cached;
-	// 		try {
-	// 			const cachedResult = await this._cached;
-	// 			if (cachedResult.isOk()) {
-	// 				return cachedResult;
-	// 			}
-	// 		} catch {
-	// 			// noop
-	// 		}
-
-	// 		if (this._cached === oldCached) {
-	// 			this._cached = undefined;
-	// 		}
-	// 	}
-
-	// 	this._cached ??= (async () => {
-	// 		const anySession = await this._authService.getGitHubSession('any', { silent });
-	// 		if (!anySession) {
-	// 			return Result.error<GetAvailableTypesError>({ type: 'noSession' });
-	// 		}
-
-	// 		const initialResult = await this.doGetAvailableTypes(anySession.accessToken);
-	// 		if (initialResult.isOk()) {
-	// 			return initialResult;
-	// 		}
-
-	// 		const permissiveSession = await this._authService.getGitHubSession('permissive', { silent, createIfNone: !silent ? true : undefined });
-	// 		if (!permissiveSession) {
-	// 			return initialResult;
-	// 		}
-	// 		return this.doGetAvailableTypes(permissiveSession.accessToken);
-	// 	})();
-
-	// 	return this._cached;
-	// }
-
 	private async getAllAvailableTypes(silent: boolean): Promise<GetAvailableTypesResult> {
-		// if (this._cached) {
-		// 	const oldCached = this._cached;
-		// 	try {
-		// 		const cachedResult = await this._cached;
-		// 		if (cachedResult.isOk()) {
-		// 			return cachedResult;
-		// 		}
-		// 	} catch {
-		// 		// noop
-		// 	}
-
-		// 	if (this._cached === oldCached) {
-		// 		this._cached = undefined;
-		// 	}
-		// }
-
+		// NOTE - 写死
 		this._cached = (async () => {
 			const primary: EmbeddingType[] = [];
 			const deprecated: EmbeddingType[] = [];

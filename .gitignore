@@ -36,3 +36,5 @@ test/aml/out
 
 # Ignore files in huksy (else we always end up with files when creating worktrees)
 .husky/_/
+
+copilot-chat-*

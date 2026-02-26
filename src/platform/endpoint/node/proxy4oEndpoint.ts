@@ -89,9 +89,6 @@ export class Proxy4oEndpoint extends ChatEndpoint {
 	}
 
 
-	// override get urlOrRequestMetadata() {
-	// 	return { type: RequestType.ProxyChatCompletions };
-	// }
 	override get urlOrRequestMetadata() {
 		return { type: RequestType.ProxyChatCompletions };
 	}

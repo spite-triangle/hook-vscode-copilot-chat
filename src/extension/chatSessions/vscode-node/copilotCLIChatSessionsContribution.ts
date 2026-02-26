@@ -31,6 +31,7 @@ import { CopilotCLIPromptResolver } from '../../agents/copilotcli/node/copilotcl
 import { ICopilotCLISession } from '../../agents/copilotcli/node/copilotcliSession';
 import { ICopilotCLISessionItem, ICopilotCLISessionService } from '../../agents/copilotcli/node/copilotcliSessionService';
 import { PermissionRequest, requestPermission } from '../../agents/copilotcli/node/permissionHelpers';
+import { ICopilotCLISessionTracker } from '../../agents/copilotcli/vscode-node/copilotCLISessionTracker';
 import { createTimeout } from '../../inlineEdits/common/common';
 import { ChatVariablesCollection, isPromptFile } from '../../prompt/common/chatVariablesCollection';
 import { IToolsService } from '../../tools/common/toolsService';
@@ -38,7 +39,7 @@ import { IChatSessionWorkspaceFolderService } from '../common/chatSessionWorkspa
 import { ChatSessionWorktreeProperties, IChatSessionWorktreeService } from '../common/chatSessionWorktreeService';
 import { isUntitledSessionId } from '../common/utils';
 import { convertReferenceToVariable } from './copilotCLIPromptReferences';
-import { ICopilotCLITerminalIntegration } from './copilotCLITerminalIntegration';
+import { ICopilotCLITerminalIntegration, TerminalOpenLocation } from './copilotCLITerminalIntegration';
 import { CopilotCloudSessionsProvider } from './copilotCloudSessionsProvider';
 
 const AGENTS_OPTION_ID = 'agent';
@@ -113,6 +114,7 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 
 	constructor(
 		@ICopilotCLISessionService private readonly copilotcliSessionService: ICopilotCLISessionService,
+		@ICopilotCLISessionTracker private readonly sessionTracker: ICopilotCLISessionTracker,
 		@ICopilotCLITerminalIntegration private readonly terminalIntegration: ICopilotCLITerminalIntegration,
 		@IChatSessionWorktreeService private readonly worktreeManager: IChatSessionWorktreeService,
 		@IRunCommandExecutionService private readonly commandExecutionService: IRunCommandExecutionService,
@@ -226,14 +228,20 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 		} satisfies vscode.ChatSessionItem;
 	}
 
-	public async createCopilotCLITerminal(): Promise<void> {
+	public async createCopilotCLITerminal(location: TerminalOpenLocation = 'editor', name?: string): Promise<void> {
 		// TODO@rebornix should be set by CLI
-		const terminalName = process.env.COPILOTCLI_TERMINAL_TITLE || l10n.t('Background Agent');
-		await this.terminalIntegration.openTerminal(terminalName);
+		const terminalName = name || process.env.COPILOTCLI_TERMINAL_TITLE || l10n.t('Background Agent');
+		await this.terminalIntegration.openTerminal(terminalName, [], undefined, location);
 	}
 
 	public async resumeCopilotCLISessionInTerminal(sessionItem: vscode.ChatSessionItem): Promise<void> {
 		const id = SessionIdForCLI.parse(sessionItem.resource);
+		const existingTerminal = await this.sessionTracker.getTerminal(id);
+		if (existingTerminal) {
+			existingTerminal.show();
+			return;
+		}
+
 		const terminalName = sessionItem.label || id;
 		const cliArgs = ['--resume', id];
 		const worktreeProperties = this.worktreeManager.getWorktreeProperties(id);
@@ -241,7 +249,10 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 		const token = new vscode.CancellationTokenSource();
 		try {
 			const cwd = worktreeProperties?.worktreePath ?? workspaceFolder?.fsPath ?? (await this.copilotcliSessionService.getSessionWorkingDirectory(id, token.token))?.fsPath;
-			await this.terminalIntegration.openTerminal(terminalName, cliArgs, cwd);
+			const terminal = await this.terminalIntegration.openTerminal(terminalName, cliArgs, cwd);
+			if (terminal) {
+				this.sessionTracker.setSessionTerminal(id, terminal);
+			}
 		} finally {
 			token.dispose();
 		}
@@ -694,7 +705,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 
 	private readonly contextForRequest = new Map<string, { prompt: string; attachments: Attachment[] }>();
 	private async handleRequest(request: vscode.ChatRequest, context: vscode.ChatContext, stream: vscode.ChatResponseStream, token: vscode.CancellationToken): Promise<vscode.ChatResult | void> {
-		const { chatSessionContext } = context;
+		let { chatSessionContext } = context;
 		const disposables = new DisposableStore();
 		try {
 
@@ -712,6 +723,35 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 				isUntitled: String(chatSessionContext?.isUntitled),
 				hasDelegatePrompt: String(request.prompt.startsWith('/delegate'))
 			});
+
+			if (!chatSessionContext && this.contextForRequest.size > 0) {
+				/**
+				 * Ported from https://github.com/microsoft/vscode-copilot-chat/commit/77bb7f6783e4ee7850f0a4461988a87a480827da
+				 * Work around for bug in core, context cannot be empty, but it is.
+				 * This happens when we delegate from another chat and start a background agent,
+				 * but for some reason the context is lost when the request is actually handled, as a result it gets treated as a new delegating request.
+				 * & then we end up in an inifinite loop of delegating requests.
+				 *
+				 * On this branch, `request.sessionResource` is not available in the proposed API,
+				 * so we find the CLI session ID by scanning `contextForRequest` entries instead.
+				 */
+				for (const [cliSessionId] of this.contextForRequest) {
+					const resource = SessionIdForCLI.getResource(cliSessionId);
+					chatSessionContext = {
+						chatSessionItem: {
+							label: request.prompt,
+							resource,
+						},
+						isUntitled: false,
+					};
+					context = {
+						chatSessionContext,
+						history: [],
+						yieldRequested: false
+					} satisfies vscode.ChatContext;
+					break;
+				}
+			}
 
 			const confirmationResults = this.getAcceptedRejectedConfirmationData(request);
 			let selectedRepository: RepoContext | undefined;
@@ -1467,6 +1507,35 @@ export function registerCLIChatCommands(copilotcliSessionItemProvider: CopilotCL
 		if (sessionItem?.resource) {
 			await copilotcliSessionItemProvider.resumeCopilotCLISessionInTerminal(sessionItem);
 		}
+	}));
+	disposableStore.add(vscode.commands.registerCommand('github.copilot.cli.sessions.rename', async (sessionItem?: vscode.ChatSessionItem) => {
+		if (!sessionItem?.resource) {
+			return;
+		}
+		const id = SessionIdForCLI.parse(sessionItem.resource);
+		const newTitle = await vscode.window.showInputBox({
+			prompt: l10n.t('New agent session title'),
+			value: sessionItem.label,
+			validateInput: value => {
+				if (!value.trim()) {
+					return l10n.t('Title cannot be empty');
+				}
+				return undefined;
+			}
+		});
+		if (newTitle) {
+			const trimmedTitle = newTitle.trim();
+			if (trimmedTitle) {
+				await copilotCLISessionService.renameSession(id, trimmedTitle);
+				copilotcliSessionItemProvider.notifySessionsChange();
+			}
+		}
+	}));
+	disposableStore.add(vscode.commands.registerCommand('github.copilot.cli.newSession', async () => {
+		await copilotcliSessionItemProvider.createCopilotCLITerminal('editor', l10n.t('Copilot CLI'));
+	}));
+	disposableStore.add(vscode.commands.registerCommand('github.copilot.cli.newSessionToSide', async () => {
+		await copilotcliSessionItemProvider.createCopilotCLITerminal('editorBeside', l10n.t('Copilot CLI'));
 	}));
 	disposableStore.add(vscode.commands.registerCommand('github.copilot.cli.sessions.openWorktreeInNewWindow', async (sessionItem?: vscode.ChatSessionItem) => {
 		if (!sessionItem?.resource) {

@@ -233,7 +233,8 @@ export class ChatEndpoint implements IChatEndpoint {
 		// TODO unlikely but would break if it changes in the middle of a request being constructed
 		return this.modelMetadata.urlOrRequestMetadata ??
 			(this.useResponsesApi ? { type: RequestType.ChatResponses, baseUrl: this.modelMetadata.baseUrl, apiKey: this.modelMetadata.apiKey, model: this.modelMetadata.model } :
-				this.useMessagesApi ? { type: RequestType.ChatMessages, baseUrl: this.modelMetadata.baseUrl, apiKey: this.modelMetadata.apiKey, model: this.modelMetadata.model } : { type: RequestType.ChatCompletions, baseUrl: this.modelMetadata.baseUrl, apiKey: this.modelMetadata.apiKey, model: this.modelMetadata.model });
+				this.useMessagesApi ? { type: RequestType.ChatMessages, baseUrl: this.modelMetadata.baseUrl, apiKey: this.modelMetadata.apiKey, model: this.modelMetadata.model }
+					: { type: RequestType.ChatCompletions, baseUrl: this.modelMetadata.baseUrl, apiKey: this.modelMetadata.apiKey, model: this.modelMetadata.model });
 	}
 
 	protected get useResponsesApi(): boolean {

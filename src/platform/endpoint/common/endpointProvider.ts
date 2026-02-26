@@ -5,7 +5,8 @@
 
 
 import { RequestMetadata } from '@vscode/copilot-api';
-import type { Event, LanguageModelChat } from 'vscode';
+import type { LanguageModelChat } from 'vscode';
+import { Event } from '../../../util/vs/base/common/event';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { TokenizerType } from '../../../util/common/tokenizer';
 import type { ChatRequest } from '../../../vscodeTypes';
@@ -61,10 +62,10 @@ export type IEmbeddingModelCapabilities = {
 	type: 'embeddings';
 	family: string;
 	tokenizer: TokenizerType;
-	chunk_strategy?: string;
+	chunk_strategy?: string; // 新增变量
 	limits?: {
-		max_inputs?: number,
-		max_token?: number,
+		max_inputs?: number;
+		max_token?: number; // 新增变量
 	};
 };
 
@@ -86,9 +87,9 @@ export interface IModelAPIResponse {
 	policy?: ModelPolicy;
 	model_picker_enabled: boolean;
 	preview?: boolean;
-	baseUrl?: string;				// 新增字段
-	apiKey?: string;				// 新增字段
-	model?: string;					// 新增字段
+	baseUrl?: string;
+	apiKey?: string;
+	model?: string;
 	is_chat_default: boolean;
 	is_chat_fallback: boolean;
 	version: string;
@@ -132,8 +133,7 @@ export interface IEndpointProvider {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Event fired when models are refreshed from the server.
-	 * Used to notify Language Model UI to update the model list.
+	 * Fires whenever we refresh the models from the server.
 	 */
 	readonly onDidModelsRefresh?: Event<void>;
 

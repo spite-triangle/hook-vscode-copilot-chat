@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { workspace } from 'vscode';
 import { CopilotNamedAnnotationList } from '../../../../../../platform/completions-core/common/openai/copilotAnnotations';
 import { ILogService, ILogger } from '../../../../../../platform/log/common/logService';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry';
@@ -49,6 +48,7 @@ import { BlockTrimmer } from './blockTrimmer';
 import { ICompletionsCacheService } from './completionsCache';
 import { CompletionsFromNetwork, makeGhostAPIChoice } from './completionsFromNetwork';
 import { ICompletionsCurrentGhostText } from './current';
+import { workspace } from 'vscode';
 import { getGhostTextStrategy } from './ghostTextStrategy';
 import { RequestContext } from './requestContext';
 import { ResultType } from './resultType';

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { RequestType } from '@vscode/copilot-api';
 import type { ChatRequest } from 'vscode';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { TimeoutTimer } from '../../../util/vs/base/common/async';
@@ -59,41 +60,6 @@ class AutoModeTokenBank extends Disposable {
 		}
 		return this._token;
 	}
-
-	// private async _fetchToken(): Promise<void> {
-	// 	const startTime = Date.now();
-
-	// 	const authToken = (await this._authService.getCopilotToken()).token;
-	// 	const headers: Record<string, string> = {
-	// 		'Content-Type': 'application/json',
-	// 		'Authorization': `Bearer ${authToken}`
-	// 	};
-	// 	if (this._token) {
-	// 		headers['Copilot-Session-Token'] = this._token.session_token;
-	// 	}
-
-	// 	const expName = this._location === ChatLocation.Editor
-	// 		? 'copilotchat.autoModelHint.editor'
-	// 		: 'copilotchat.autoModelHint';
-
-	// 	const autoModeHint = this._expService.getTreatmentVariable<string>(expName) || 'auto';
-
-	// 	const response = await this._capiClientService.makeRequest<Response>({
-	// 		json: {
-	// 			'auto_mode': { 'model_hints': [autoModeHint] }
-	// 		},
-	// 		headers,
-	// 		method: 'POST'
-	// 	}, { type: RequestType.AutoModels });
-	// 	const data: AutoModeAPIResponse = await response.json() as AutoModeAPIResponse;
-	// 	this._logService.trace(`Fetched auto model for ${this.debugName} in ${Date.now() - startTime}ms.`);
-	// 	this._token = data;
-	// 	// Trigger a refresh 5 minutes before expiration
-	// 	if (!this._store.isDisposed) {
-	// 		this._refreshTimer.cancelAndSet(this._fetchToken.bind(this), (data.expires_at * 1000) - Date.now() - 5 * 60 * 1000);
-	// 	}
-	// 	this._fetchTokenPromise = undefined;
-	// }
 
 	private async _fetchToken(): Promise<void> {
 

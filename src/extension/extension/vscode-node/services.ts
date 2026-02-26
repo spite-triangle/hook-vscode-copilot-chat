@@ -11,11 +11,14 @@ import { createStaticGitHubTokenProvider, getOrCreateTestingCopilotTokenManager 
 import { AuthenticationService } from '../../../platform/authentication/vscode-node/authenticationService';
 import { VSCodeCopilotTokenManager } from '../../../platform/authentication/vscode-node/copilotTokenManager';
 import { IChatAgentService } from '../../../platform/chat/common/chatAgents';
+import { IChatHookService } from '../../../platform/chat/common/chatHookService';
 import { IChatMLFetcher } from '../../../platform/chat/common/chatMLFetcher';
+import { IHookExecutor } from '../../../platform/chat/common/hookExecutor';
+import { IHooksOutputChannel } from '../../../platform/chat/common/hooksOutputChannel';
+import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
+import { NodeHookExecutor } from '../../../platform/chat/node/hookExecutor';
 import { IChunkingEndpointClient } from '../../../platform/chunking/common/chunkingEndpointClient';
 import { ChunkingEndpointClientImpl } from '../../../platform/chunking/common/chunkingEndpointClientImpl';
-import { IChunkingService } from '../../../platform/chunking/common/chunkingService';
-import { ChunkingServiceImpl } from '../../../platform/chunking/node/chunkingServiceImpl';
 import { INaiveChunkingService, NaiveChunkingService } from '../../../platform/chunking/node/naiveChunkerService';
 import { IDevContainerConfigurationService } from '../../../platform/devcontainer/common/devContainerConfigurationService';
 import { IDiffService } from '../../../platform/diff/common/diffService';
@@ -77,6 +80,9 @@ import { IWorkspaceFileIndex, WorkspaceFileIndex } from '../../../platform/works
 import { IInstantiationServiceBuilder } from '../../../util/common/services';
 import { SyncDescriptor } from '../../../util/vs/platform/instantiation/common/descriptors';
 import { GitHubOrgChatResourcesService, IGitHubOrgChatResourcesService } from '../../agents/vscode-node/githubOrgChatResourcesService';
+import { ChatHookService } from '../../chat/vscode-node/chatHookService';
+import { HooksOutputChannel } from '../../chat/vscode-node/hooksOutputChannel';
+import { SessionTranscriptService } from '../../chat/vscode-node/sessionTranscriptService';
 import { CommandServiceImpl, ICommandService } from '../../commands/node/commandService';
 import { ICopilotInlineCompletionItemProviderService } from '../../completions/common/copilotInlineCompletionItemProviderService';
 import { CopilotInlineCompletionItemProviderService } from '../../completions/vscode-node/copilotInlineCompletionItemProviderService';
@@ -193,6 +199,10 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	builder.define(IGithubRepositoryService, new SyncDescriptor(GithubRepositoryService));
 	builder.define(IDevContainerConfigurationService, new SyncDescriptor(DevContainerConfigurationServiceImpl));
 	builder.define(IChatAgentService, new SyncDescriptor(ChatAgentService));
+	builder.define(IChatHookService, new SyncDescriptor(ChatHookService));
+	builder.define(IHookExecutor, new SyncDescriptor(NodeHookExecutor));
+	builder.define(IHooksOutputChannel, new SyncDescriptor(HooksOutputChannel));
+	builder.define(ISessionTranscriptService, new SyncDescriptor(SessionTranscriptService));
 	builder.define(ILinkifyService, new SyncDescriptor(LinkifyService));
 	builder.define(IChatMLFetcher, new SyncDescriptor(ChatMLFetcherImpl));
 	builder.define(IFeedbackReporter, new SyncDescriptor(FeedbackReporter));
@@ -223,7 +233,6 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 	builder.define(IUndesiredModelsManager, new SyncDescriptor(UndesiredModels.Manager));
 	builder.define(ICopilotInlineCompletionItemProviderService, new SyncDescriptor(CopilotInlineCompletionItemProviderService));
 	builder.define(IGitHubOrgChatResourcesService, new SyncDescriptor(GitHubOrgChatResourcesService));
-	builder.define(IChunkingService, new SyncDescriptor(ChunkingServiceImpl));
 }
 
 function setupMSFTExperimentationService(builder: IInstantiationServiceBuilder, extensionContext: ExtensionContext) {
