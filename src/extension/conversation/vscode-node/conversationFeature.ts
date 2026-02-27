@@ -81,16 +81,17 @@ export class ConversationFeature implements IExtensionContribution {
 		@INewWorkspacePreviewContentManager private readonly newWorkspacePreviewContentManager: INewWorkspacePreviewContentManager,
 		@ISettingsEditorSearchService private readonly settingsEditorSearchService: ISettingsEditorSearchService,
 	) {
-		this._enabled = false;
-		this._activated = false;
-
 		// Register Copilot token listener
-		this.registerCopilotTokenListener();
+		// this.registerCopilotTokenListener();
 
 		const activationBlockerDeferred = new DeferredPromise<void>();
 		this.activationBlocker = activationBlockerDeferred.p;
 
+		this._enabled = false;
+		this._activated = false;
+		this.enabled = true;
 		this.activated = true;
+
 		activationBlockerDeferred.complete();
 
 		if (authenticationService.copilotToken) {
