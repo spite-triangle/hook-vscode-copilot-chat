@@ -6,16 +6,11 @@
 
 import { RequestMetadata } from '@vscode/copilot-api';
 import type { LanguageModelChat } from 'vscode';
-import { Event } from '../../../util/vs/base/common/event';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { TokenizerType } from '../../../util/common/tokenizer';
+import { Event } from '../../../util/vs/base/common/event';
 import type { ChatRequest } from '../../../vscodeTypes';
 import { IChatEndpoint, IEmbeddingsEndpoint } from '../../networking/common/networking';
-
-export type ModelPolicy = {
-	state: 'enabled' | 'disabled' | 'unconfigured';
-	terms?: string;
-};
 
 export type CustomModel = {
 	key_name: string;
@@ -55,6 +50,9 @@ export type IChatModelCapabilities = {
 		vision?: boolean;
 		prediction?: boolean;
 		thinking?: boolean;
+		adaptive_thinking?: boolean;
+		max_thinking_budget?: number;
+		min_thinking_budget?: number;
 	};
 };
 
@@ -78,13 +76,13 @@ type ICompletionModelCapabilities = {
 export enum ModelSupportedEndpoint {
 	ChatCompletions = '/chat/completions',
 	Responses = '/responses',
+	WebSocketResponses = 'ws:/responses',
 	Messages = '/v1/messages'
 }
 
 export interface IModelAPIResponse {
 	id: string;
 	name: string;
-	policy?: ModelPolicy;
 	model_picker_enabled: boolean;
 	preview?: boolean;
 	baseUrl?: string;
@@ -133,9 +131,10 @@ export interface IEndpointProvider {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Fires whenever we refresh the models from the server.
+	 * Fires whenever model metadata is refreshed from the server.
+	 * Does not always indicate there is a change, just that the data is fresh.
 	 */
-	readonly onDidModelsRefresh?: Event<void>;
+	readonly onDidModelsRefresh: Event<void>;
 
 	/**
 	 * Gets all the completion models known by the endpoint provider.

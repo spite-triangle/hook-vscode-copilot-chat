@@ -170,9 +170,11 @@ private async tryInit(silent: boolean): Promise<WorkspaceChunkSearchServiceImpl 
 
 ### 自定义 naiveChunker 实现
 
-基于 `@chonkiejs/core` 库自定义实现 `naiveChunker`，并将 `docs/hack/chunks` 文件夹下的文件拷贝到指定位置 (文件存在则覆盖)
-1. 根据 `docs\hack\chunks\naiveChunker.ts` 修改 `src\platform\chunking\node\naiveChunker.ts` 实现
-2. 使用 `src\platform\chunking\node\naiveChunker.ts` 中的 `get_max_chunk_size_token` 替换掉所有的 `MAX_CHUNK_SIZE_TOKENS`
+- 文件：`src\platform\chunking\node\naiveChunker.ts`
+- 修改类 `NaiveChunker`
+- 修改内容: 基于 `@chonkiejs/core` 库重新实现 `naiveChunker`
+    1. 根据 `docs\hack\chunks\naiveChunker.ts` 修改 `src\platform\chunking\node\naiveChunker.ts` 实现
+    2. 使用 `src\platform\chunking\node\naiveChunker.ts` 中的 `get_max_chunk_size_token` 替换掉所有的 `MAX_CHUNK_SIZE_TOKENS`
 
 
 ### naiveChunker 集成
@@ -234,7 +236,7 @@ private async doComputeChunksAndEmbeddingsOffline(
                 embeddingType,
                 chunkStrings,
                 { inputType: 'document' },
-                new TelemetryCorrelationId('LocalChunkingAndEmbeddingService'),
+                new TelemetryCorrelationId(telemetryInfo),
                 token
             );
 

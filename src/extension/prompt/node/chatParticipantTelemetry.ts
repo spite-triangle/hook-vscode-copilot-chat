@@ -12,6 +12,7 @@ import { isAutoModel } from '../../../platform/endpoint/node/autoChatEndpoint';
 import { ILanguageDiagnosticsService } from '../../../platform/languages/common/languageDiagnosticsService';
 import { IChatEndpoint } from '../../../platform/networking/common/networking';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
+import { TelemetryData as PlatformTelemetryData } from '../../../platform/telemetry/common/telemetryData';
 import { isNotebookCellOrNotebookChatInput } from '../../../util/common/notebooks';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { isBYOKModel } from '../../byok/node/openAIEndpoint';
@@ -29,7 +30,7 @@ import { IToolCall, IToolCallRound } from '../common/intents';
 import { IDocumentContext } from './documentContext';
 import { IIntent, TelemetryData } from './intents';
 import { RepoInfoTelemetry } from './repoInfoTelemetry';
-import { ConversationalBaseTelemetryData, createTelemetryWithId, extendUserMessageTelemetryData, getCodeBlocks, sendModelMessageTelemetry, sendOffTopicMessageTelemetry, sendUserActionTelemetry, sendUserMessageTelemetry } from './telemetry';
+import { ConversationalBaseTelemetryData, ConversationalTelemetryData, createTelemetryWithId, extendUserMessageTelemetryData, getCodeBlocks, sendModelMessageTelemetry, sendOffTopicMessageTelemetry, sendUserActionTelemetry, sendUserMessageTelemetry } from './telemetry';
 
 // #region: internal telemetry for responses
 
@@ -143,6 +144,9 @@ type RequestPanelTelemetryProperties = RequestTelemetryProperties & {
 	responseId: string;
 	codeBlocks: string;
 	isParticipantDetected: string;
+	mode: string;
+	parentRequestId: string | undefined;
+	vscodeRequestId: string | undefined;
 };
 
 type RequestTelemetryMeasurements = {
@@ -203,7 +207,7 @@ type RequestInlineTelemetryMeasurements = RequestTelemetryMeasurements & {
 
 export class ChatTelemetryBuilder {
 
-	public readonly baseUserTelemetry: ConversationalBaseTelemetryData = createTelemetryWithId();
+	public readonly baseUserTelemetry: ConversationalBaseTelemetryData;
 
 	private readonly _repoInfoTelemetry: RepoInfoTelemetry;
 
@@ -217,8 +221,12 @@ export class ChatTelemetryBuilder {
 		private readonly _documentContext: IDocumentContext | undefined,
 		private readonly _firstTurn: boolean,
 		private readonly _request: vscode.ChatRequest,
+		telemetryMessageId: string | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
+		this.baseUserTelemetry = telemetryMessageId
+			? new ConversationalTelemetryData(PlatformTelemetryData.createAndMarkAsIssued({ messageId: telemetryMessageId }))
+			: createTelemetryWithId();
 		// Repo info telemetry is held here as the begin event should be sent only by the first PanelChatTelemetry instance created for a user request.
 		// and a new PanelChatTelemetry instance is created per step in the request.
 		this._repoInfoTelemetry = this.instantiationService.createInstance(RepoInfoTelemetry, this.baseUserTelemetry.properties.messageId);
@@ -426,11 +434,15 @@ export abstract class ChatTelemetry<C extends IDocumentContext | undefined = IDo
 	}
 
 	protected _getModeName(): string {
-		return this._request.modeInstructions2 ? 'custom' :
+		return this._request.modeInstructions2 ? (this._request.modeInstructions2.name.toLowerCase() === 'plan' ? 'plan' : 'custom') :
 			this._intent.id === AgentIntent.ID ? 'agent' :
 				(this._intent.id === EditCodeIntent.ID || this._intent.id === EditCode2Intent.ID) ? 'edit' :
 					(this._intent.id === Intent.InlineChat) ? 'inlineChatIntent' :
 						'ask';
+	}
+
+	protected _getModeNameWithSubagent(): string {
+		return this._request.subAgentName ?? this._getModeName();
 	}
 
 	public sendToolCallingTelemetry(toolCallRounds: IToolCallRound[], availableTools: readonly vscode.LanguageModelToolInformation[], responseType: ChatFetchResponseType | 'cancelled' | 'maxToolCalls'): void {
@@ -452,6 +464,18 @@ export abstract class ChatTelemetry<C extends IDocumentContext | undefined = IDo
 			return acc;
 		}, 0);
 
+		let totalToolCalls = 0;
+		let parallelToolCallRounds = 0;
+		let parallelToolCallsTotal = 0;
+		for (const round of toolCallRounds) {
+			const count = round.toolCalls.length;
+			totalToolCalls += count;
+			if (count > 1) {
+				parallelToolCallRounds++;
+				parallelToolCallsTotal += count;
+			}
+		}
+
 		const toolCallProperties = {
 			intentId: this._intent.id,
 			conversationId: this._conversation.sessionId,
@@ -469,7 +493,10 @@ export abstract class ChatTelemetry<C extends IDocumentContext | undefined = IDo
 			messageCharLen: this._userTelemetry.measurements.messageCharLen,
 			availableToolCount: availableTools.length,
 			toolTokenCount: this._toolTokenCount,
-			invalidToolCallCount
+			invalidToolCallCount,
+			totalToolCalls,
+			parallelToolCallRounds,
+			parallelToolCallsTotal
 		};
 
 		/* __GDPR__
@@ -478,7 +505,6 @@ export abstract class ChatTelemetry<C extends IDocumentContext | undefined = IDo
 				"comment": "Records information about tool calls during a request.",
 				"intentId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Id for the invoked intent." },
 				"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Id for the current chat conversation." },
-				"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the request succeeded or failed." },
 				"numRequests": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The total number of requests made" },
 				"turnIndex": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The conversation turn index" },
 				"toolCounts": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": false, "comment": "The number of times each tool was used" },
@@ -489,8 +515,11 @@ export abstract class ChatTelemetry<C extends IDocumentContext | undefined = IDo
 				"availableToolCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "How number of tools that were available." },
 				"toolTokenCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "How many tokens were used by tool definitions." },
 				"responseType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "If the final response was successful or how it failed." },
-				"invalidToolCallCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The number of tool call rounds that had an invalid tool call." },
-				"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model used for the request." }
+				"invalidToolCallCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The number of tool call rounds that had an invalid tool call." },
+				"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model used for the request." },
+				"totalToolCalls": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of tool calls across all rounds." },
+				"parallelToolCallRounds": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of rounds where the model called multiple tools in parallel." },
+				"parallelToolCallsTotal": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of tool calls that were part of a parallel round." }
 			}
 		*/
 		this._telemetryService.sendMSFTTelemetryEvent('toolCallDetails', toolCallProperties, toolCallMeasurements);
@@ -657,7 +686,10 @@ export class PanelChatTelemetry extends ChatTelemetry<IDocumentContext | undefin
 				"toolTokenCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "How many tokens were used by tool definitions." },
 				"summarizationEnabled" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Whether summarization is enabled (the default) or disabled (via user setting)" },
 				"isBYOK": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Whether the request was for a BYOK model" },
-				"isAuto": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Whether the request was for an Auto model" }
+				"isAuto": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Whether the request was for an Auto model" },
+				"mode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat mode used for this request (e.g., ask, edit, agent, custom)." },
+				"parentRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The parent request id if this request is from a subagent." },
+				"vscodeRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The VS Code chat request id, for joining with VS Code telemetry events." }
 			}
 		*/
 		this._telemetryService.sendMSFTTelemetryEvent('panel.request', {
@@ -674,6 +706,9 @@ export class PanelChatTelemetry extends ChatTelemetry<IDocumentContext | undefin
 			apiType: this._endpoint.apiType,
 			isParticipantDetected: String(this._request.isParticipantDetected),
 			toolCounts: JSON.stringify(toolCounts),
+			mode: this._getModeNameWithSubagent(),
+			parentRequestId: this._request.parentRequestId,
+			vscodeRequestId: this._request.id
 		} satisfies RequestPanelTelemetryProperties, {
 			turn: this._conversation.turns.length,
 			round: roundIndex,
@@ -711,6 +746,7 @@ export class PanelChatTelemetry extends ChatTelemetry<IDocumentContext | undefin
 				toolCounts: JSON.stringify(toolCounts),
 				mode: modeName,
 				codeBlocks: JSON.stringify(codeBlocks),
+				vscodeRequestId: this._request.id,
 			},
 			{
 				isAgent: this._intent.id === AgentIntent.ID ? 1 : 0,

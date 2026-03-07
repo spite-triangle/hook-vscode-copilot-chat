@@ -20,12 +20,11 @@ import { NullWorkspaceFileIndex } from '../../../../platform/workspaceChunkSearc
 import { IWorkspaceFileIndex } from '../../../../platform/workspaceChunkSearch/node/workspaceFileIndex';
 import { ChatResponseStreamImpl } from '../../../../util/common/chatResponseStreamImpl';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
-import { Event } from '../../../../util/vs/base/common/event';
 import { isObject, isUndefinedOrNull } from '../../../../util/vs/base/common/types';
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
 import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
-import { ChatLocation, ChatResponseConfirmationPart, ChatResponseMarkdownPart, LanguageModelTextPart, LanguageModelToolResult } from '../../../../vscodeTypes';
+import { ChatLocation, ChatResponseConfirmationPart, ChatResponseMarkdownPart, LanguageModelTextPart, LanguageModelToolResult, Uri } from '../../../../vscodeTypes';
 import { ToolCallingLoop } from '../../../intents/node/toolCallingLoop';
 import { ToolResultMetadata } from '../../../prompts/node/panel/toolCalling';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
@@ -135,6 +134,7 @@ suite('defaultIntentRequestHandler', () => {
 		tools = new Map();
 		id = generateUuid();
 		sessionId = generateUuid();
+		sessionResource = Uri.parse(`test://session/${this.sessionId}`);
 		hasHooksEnabled = false;
 	}
 
@@ -161,9 +161,8 @@ suite('defaultIntentRequestHandler', () => {
 			CancellationToken.None,
 			undefined,
 			ChatLocation.Panel,
-			instaService.createInstance(ChatTelemetryBuilder, Date.now(), sessionId, undefined, turns.length > 1, request),
+			instaService.createInstance(ChatTelemetryBuilder, Date.now(), sessionId, undefined, turns.length > 1, request, undefined),
 			{ maxToolCallIterations },
-			Event.None,
 			undefined,
 		);
 	};

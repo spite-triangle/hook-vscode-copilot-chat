@@ -71,6 +71,7 @@ export class CachingChunkingEndpointClient implements IChunkingEndpointClient {
 		private readonly _cache: IChunkingEndpointClientCache,
 		@IInstantiationService instantiationService: IInstantiationService,
 	) {
+		// NOTE - 使用依赖注入方式创建
 		this._chunkingEndpointClient = instantiationService.createInstance(new SyncDescriptor(ChunkingEndpointClientImpl));
 	}
 

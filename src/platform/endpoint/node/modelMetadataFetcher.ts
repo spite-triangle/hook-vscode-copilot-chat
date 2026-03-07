@@ -6,23 +6,19 @@
 import { RequestType } from '@vscode/copilot-api';
 import type { LanguageModelChat } from 'vscode';
 import { workspace } from 'vscode';
-import { createRequestHMAC } from '../../../util/common/crypto';
 import { TaskSingler } from '../../../util/common/taskSingler';
 import { TokenizerType } from '../../../util/common/tokenizer';
 import { Emitter, Event } from '../../../util/vs/base/common/event';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
-import { IInstantiationService, ServicesAccessor } from '../../../util/vs/platform/instantiation/common/instantiation';
+import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
+
 import { IAuthenticationService } from '../../authentication/common/authentication';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { IEnvService } from '../../env/common/envService';
 import { ILogService } from '../../log/common/logService';
-import { IFetcherService } from '../../networking/common/fetcherService';
-import { getRequest } from '../../networking/common/networking';
 import { IRequestLogger } from '../../requestLogger/node/requestLogger';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
-import { ITelemetryService } from '../../telemetry/common/telemetry';
-import { ICAPIClientService } from '../common/capiClient';
 import { ChatEndpointFamily, IChatModelInformation, ICompletionModelInformation, IEmbeddingModelInformation, IModelAPIResponse, isChatModelInformation, isCompletionModelInformation, isEmbeddingModelInformation, ModelSupportedEndpoint } from '../common/endpointProvider';
 import { ModelAliasRegistry } from '../common/modelAliasRegistry';
 
@@ -84,16 +80,12 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 	public onDidModelsRefresh = this._onDidModelRefresh.event;
 
 	constructor(
-		private readonly collectFetcherTelemetry: ((accessor: ServicesAccessor, error: any) => void) | undefined,
 		protected readonly _isModelLab: boolean,
-		@IFetcherService private readonly _fetcher: IFetcherService,
 		@IRequestLogger private readonly _requestLogger: IRequestLogger,
-		@ICAPIClientService private readonly _capiClientService: ICAPIClientService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
 		@IExperimentationService private readonly _expService: IExperimentationService,
 		@IEnvService private readonly _envService: IEnvService,
 		@IAuthenticationService private readonly _authService: IAuthenticationService,
-		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
@@ -218,6 +210,7 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 
 	private _shouldRefreshModels(): boolean {
 		if (this._familyMap.size === 0) {
+			// Always refresh if we have no models as this means the last fetch failed in some way
 			return true;
 		}
 		const tenMinutes = 10 * 60 * 1000; // 10 minutes in milliseconds
@@ -227,7 +220,8 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 			return true; // If there's no last fetch time, we should refresh
 		}
 
-		// We only want to fetch models if the current session is active
+		// Only fetch if the current session is active.
+		// This avoids unnecessary network calls when VS Code is in the background.
 		if (!this._envService.isActive) {
 			return false;
 		}
@@ -250,7 +244,6 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 			const inline_config = workspace.getConfiguration('github.copilot.hackModels.inline');
 			const embedding_config = workspace.getConfiguration('github.copilot.hackModels.embedding');
 			const fast_config = workspace.getConfiguration('github.copilot.hackModels.fast');
-			const claude_config = workspace.getConfiguration('github.copilot.hackModels.claude');
 
 			const models: IModelAPIResponse[] = [
 				// base
@@ -282,12 +275,12 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 							parallel_tool_calls: base_config.get("capabilities.supports.parallel_tool_calls", true),
 							streaming: base_config.get("capabilities.supports.streaming", true),
 							tool_calls: base_config.get("capabilities.supports.tool_calls", true),
-							vision: base_config.get("capabilities.supports.vision", true)
+							vision: base_config.get("capabilities.supports.vision", true),
+							thinking: base_config.get("capabilities.supports.thinking", undefined),
+							adaptive_thinking: base_config.get("capabilities.supports.adaptive_thinking", undefined),
+							max_thinking_budget: base_config.get("capabilities.limits.max_thinking_budget", undefined),
+							min_thinking_budget: base_config.get("capabilities.limits.min_thinking_budget", undefined)
 						},
-					},
-					policy: {
-						state: "enabled",
-						terms: "Enable access to the latest GPT-5 mini model from OpenAI. [Learn more about how GitHub Copilot serves GPT-5 mini](https://gh.io/copilot-openai)."
 					},
 					billing: {
 						is_premium: true,
@@ -336,7 +329,6 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 						tokenizer: embedding_config.get("capabilities.tokenizer", TokenizerType.O200K),
 						limits: {
 							max_inputs: embedding_config.get("capabilities.limits.max_inputs", 10),
-							max_token: embedding_config.get("capabilities.limits.max_token", 250)
 						},
 					},
 					billing: {
@@ -363,8 +355,8 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 						tokenizer: fast_config.get("capabilities.tokenizer", TokenizerType.O200K),
 						limits: {
 							max_context_window_tokens: fast_config.get("capabilities.limits.max_context_window_tokens", 128000),
-							max_output_tokens: fast_config.get("capabilities.limits.max_output_tokens", Math.floor(base_config.get("capabilities.limits.max_context_window_tokens", 128000) * 0.25)),
-							max_prompt_tokens: fast_config.get("capabilities.limits.max_prompt_tokens", Math.floor(base_config.get("capabilities.limits.max_context_window_tokens", 128000) * 0.5)),
+							max_output_tokens: fast_config.get("capabilities.limits.max_output_tokens", Math.floor(fast_config.get("capabilities.limits.max_context_window_tokens", 128000) * 0.25)),
+							max_prompt_tokens: fast_config.get("capabilities.limits.max_prompt_tokens", Math.floor(fast_config.get("capabilities.limits.max_context_window_tokens", 128000) * 0.5)),
 							vision: {
 								max_prompt_images: fast_config.get("capabilities.limits.vision.max_prompt_images", 1)
 							}
@@ -373,7 +365,11 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 							parallel_tool_calls: fast_config.get("capabilities.supports.parallel_tool_calls", true),
 							streaming: fast_config.get("capabilities.supports.streaming", true),
 							tool_calls: fast_config.get("capabilities.supports.tool_calls", true),
-							vision: fast_config.get("capabilities.supports.vision", true)
+							vision: fast_config.get("capabilities.supports.vision", true),
+							thinking: fast_config.get("capabilities.supports.thinking", undefined),
+							adaptive_thinking: fast_config.get("capabilities.supports.adaptive_thinking", undefined),
+							max_thinking_budget: fast_config.get("capabilities.limits.max_thinking_budget", undefined),
+							min_thinking_budget: fast_config.get("capabilities.limits.min_thinking_budget", undefined)
 						},
 					},
 					billing: {
@@ -399,8 +395,8 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 						tokenizer: fast_config.get("capabilities.tokenizer", TokenizerType.O200K),
 						limits: {
 							max_context_window_tokens: fast_config.get("capabilities.limits.max_context_window_tokens", 128000),
-							max_output_tokens: fast_config.get("capabilities.limits.max_output_tokens", Math.floor(base_config.get("capabilities.limits.max_context_window_tokens", 128000) * 0.25)),
-							max_prompt_tokens: fast_config.get("capabilities.limits.max_prompt_tokens", Math.floor(base_config.get("capabilities.limits.max_context_window_tokens", 128000) * 0.5)),
+							max_output_tokens: fast_config.get("capabilities.limits.max_output_tokens", Math.floor(fast_config.get("capabilities.limits.max_context_window_tokens", 128000) * 0.25)),
+							max_prompt_tokens: fast_config.get("capabilities.limits.max_prompt_tokens", Math.floor(fast_config.get("capabilities.limits.max_context_window_tokens", 128000) * 0.5)),
 							vision: {
 								max_prompt_images: fast_config.get("capabilities.limits.vision.max_prompt_images", 1)
 							}
@@ -409,7 +405,11 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 							parallel_tool_calls: fast_config.get("capabilities.supports.parallel_tool_calls", true),
 							streaming: fast_config.get("capabilities.supports.streaming", true),
 							tool_calls: fast_config.get("capabilities.supports.tool_calls", true),
-							vision: fast_config.get("capabilities.supports.vision", true)
+							vision: fast_config.get("capabilities.supports.vision", true),
+							thinking: fast_config.get("capabilities.supports.thinking", undefined),
+							adaptive_thinking: fast_config.get("capabilities.supports.adaptive_thinking", undefined),
+							max_thinking_budget: fast_config.get("capabilities.limits.max_thinking_budget", undefined),
+							min_thinking_budget: fast_config.get("capabilities.limits.min_thinking_budget", undefined)
 						},
 					},
 					billing: {
@@ -427,8 +427,8 @@ export class ModelMetadataFetcher extends Disposable implements IModelMetadataFe
 					item.name = item.name ?? item.model ?? `Custom Model ${i}`;
 					item.model_picker_enabled = true;
 
-					if (item.capabilities.family.length <= 0) {
-						item.capabilities.family = "custom";
+					if ((item.capabilities as any).family.length <= 0) {
+						(item.capabilities as any).family = "custom";
 					}
 
 					models.push(item);

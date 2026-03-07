@@ -15,6 +15,7 @@ import { isOpenAiFunctionTool } from '../../../networking/common/fetch';
 import { IFetcherService } from '../../../networking/common/fetcherService';
 import { IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody } from '../../../networking/common/networking';
 import { CAPIChatMessage, RawMessageConversionCallback } from '../../../networking/common/openai';
+import { IChatWebSocketManager } from '../../../networking/node/chatWebSocketManager';
 import { IExperimentationService } from '../../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../telemetry/common/telemetry';
 import { ITokenizerProvider } from '../../../tokenizer/node/tokenizer';
@@ -88,6 +89,7 @@ export class OpenAICompatibleTestEndpoint extends ChatEndpoint {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IExperimentationService experimentationService: IExperimentationService,
+		@IChatWebSocketManager chatWebSocketService: IChatWebSocketManager,
 		@ILogService logService: ILogService
 	) {
 		const modelInfo: IChatModelInformation = {
@@ -123,15 +125,12 @@ export class OpenAICompatibleTestEndpoint extends ChatEndpoint {
 		super(
 			modelInfo,
 			domainService,
-			capiClientService,
-			fetcherService,
-			telemetryService,
-			authService,
 			chatMLFetcher,
 			tokenizerProvider,
 			instantiationService,
 			configurationService,
 			experimentationService,
+			chatWebSocketService,
 			logService
 		);
 	}
@@ -281,10 +280,6 @@ export class OpenAICompatibleTestEndpoint extends ChatEndpoint {
 			Object.keys(body).forEach(key => delete (body as any)[key]);
 			body.messages = newMessages;
 		}
-	}
-
-	override async acceptChatPolicy(): Promise<boolean> {
-		return true;
 	}
 
 	override cloneWithTokenOverride(_modelMaxPromptTokens: number): IChatEndpoint {

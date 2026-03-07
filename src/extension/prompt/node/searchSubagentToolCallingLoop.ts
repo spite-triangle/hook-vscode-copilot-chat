@@ -11,6 +11,7 @@ import { ChatLocation, ChatResponse } from '../../../platform/chat/common/common
 import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { ChatEndpointFamily, IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
+import { ProxyAgenticSearchEndpoint } from '../../../platform/endpoint/node/proxyAgenticSearchEndpoint';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IRequestLogger } from '../../../platform/requestLogger/node/requestLogger';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
@@ -29,6 +30,8 @@ export interface ISearchSubagentToolCallingLoopOptions extends IToolCallingLoopO
 	request: ChatRequest;
 	location: ChatLocation;
 	promptText: string;
+	/** Optional pre-generated subagent invocation ID. If not provided, a new UUID will be generated. */
+	subAgentInvocationId?: string;
 }
 
 export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubagentToolCallingLoopOptions> {
@@ -58,7 +61,7 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 			context.tools = {
 				...context.tools,
 				toolReferences: [],
-				subAgentInvocationId: randomUUID(),
+				subAgentInvocationId: this.options.subAgentInvocationId ?? randomUUID(),
 				subAgentName: 'search'
 			};
 		}
@@ -66,11 +69,20 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 		return context;
 	}
 
+	private static readonly DEFAULT_AGENTIC_PROXY_MODEL = 'agentic-search-v3';
+
 	/**
 	 * Get the endpoint to use for the search subagent
 	 */
-	private async getEndpoint(request: ChatRequest) {
+	private async getEndpoint() {
 		const modelName = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentModel, this._experimentationService) as ChatEndpointFamily | undefined;
+		const useAgenticProxy = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentUseAgenticProxy, this._experimentationService);
+
+		if (useAgenticProxy) {
+			// Use agentic proxy with SearchSubagentModel or default to 'agentic-search-v3'
+			const agenticProxyModel = modelName || SearchSubagentToolCallingLoop.DEFAULT_AGENTIC_PROXY_MODEL;
+			return this.instantiationService.createInstance(ProxyAgenticSearchEndpoint, agenticProxyModel);
+		}
 
 		if (modelName) {
 			try {
@@ -88,7 +100,7 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 	}
 
 	protected async buildPrompt(buildPromptContext: IBuildPromptContext, progress: Progress<ChatResponseReferencePart | ChatResponseProgressPart>, token: CancellationToken): Promise<IBuildPromptResult> {
-		const endpoint = await this.getEndpoint(this.options.request);
+		const endpoint = await this.getEndpoint();
 		const maxSearchTurns = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentToolCallLimit, this._experimentationService);
 		const renderer = PromptRenderer.create(
 			this.instantiationService,
@@ -103,7 +115,7 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 	}
 
 	protected async getAvailableTools(): Promise<LanguageModelToolInformation[]> {
-		const endpoint = await this.getEndpoint(this.options.request);
+		const endpoint = await this.getEndpoint();
 		const allTools = this.toolsService.getEnabledTools(this.options.request, endpoint);
 
 		// Only include tools relevant for search operations.
@@ -120,7 +132,7 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 	}
 
 	protected async fetch({ messages, finishedCb, requestOptions }: ToolCallingLoopFetchOptions, token: CancellationToken): Promise<ChatResponse> {
-		const endpoint = await this.getEndpoint(this.options.request);
+		const endpoint = await this.getEndpoint();
 		return endpoint.makeChatRequest2({
 			debugName: SearchSubagentToolCallingLoop.ID,
 			messages,
@@ -137,6 +149,7 @@ export class SearchSubagentToolCallingLoop extends ToolCallingLoop<ISearchSubage
 				messageSource: 'chat.editAgent',
 				subType: 'subagent/search'
 			},
+			requestKindOptions: { kind: 'subagent' }
 		}, token);
 	}
 }

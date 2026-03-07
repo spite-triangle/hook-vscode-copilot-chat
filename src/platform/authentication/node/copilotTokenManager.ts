@@ -68,7 +68,7 @@ export function getOrCreateTestingCopilotTokenManager(deviceId: string): SyncDes
 	}
 
 	if (process.env.GITHUB_OAUTH_TOKEN) {
-		return new SyncDescriptor(CopilotTokenManagerFromGitHubToken, [process.env.GITHUB_OAUTH_TOKEN]);
+		return new SyncDescriptor(CopilotTokenManagerFromGitHubToken, [process.env.GITHUB_OAUTH_TOKEN, 'unknown']);
 	}
 
 	if (process.env.GITHUB_PAT) {
@@ -218,7 +218,6 @@ export abstract class BaseCopilotTokenManager extends Disposable implements ICop
 	//#endregion
 
 	//#region Private methods
-	// Currently disabled - using hardcoded token in doAuthFromGitHubTokenOrDevDeviceId
 	private async fetchCopilotTokenFromGitHubToken(githubToken: string): Promise<FetchTokenResult> {
 		const options: FetchOptions = {
 			headers: {
@@ -232,7 +231,6 @@ export abstract class BaseCopilotTokenManager extends Disposable implements ICop
 		return this.parseTokenResponse(response);
 	}
 
-	// Currently disabled - using hardcoded token in doAuthFromGitHubTokenOrDevDeviceId
 	private async fetchCopilotTokenFromDevDeviceId(devDeviceId: string): Promise<FetchTokenResult> {
 		const options: FetchOptions = {
 			headers: {

@@ -3,16 +3,19 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CallTracker } from '../../../../util/common/telemetryCorrelationId';
 import { raceCancellationError } from '../../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { CancellationError } from '../../../../util/vs/base/common/errors';
 import { IDisposable } from '../../../../util/vs/base/common/lifecycle';
+import { getGithubMetadataHeaders } from '../../../chunking/common/chunkingEndpointClientImpl';
+import { IEnvService } from '../../../env/common/envService';
 import { ILogService } from '../../../log/common/logService';
 
 // Sliding window that holds at least N entries and all entries in the time window.
 // This allows the sliding window to always hold some entries if inserts are infrequent,
 // but if inserts are frequent enough then time window behavior takes over.
-class SlidingTimeAndNWindow {
+class SlidingTimeAndNWindow implements IDisposable {
 	private values: number[] = [];
 	private times: number[] = [];
 	private sumValues = 0;
@@ -24,6 +27,12 @@ class SlidingTimeAndNWindow {
 		this.numEntries = numEntries;
 		this.windowDurationMs = windowDurationMs;
 		this.startPeriodicCleanup();
+	}
+
+	dispose(): void {
+		if (typeof this.cleanupInterval !== 'undefined') {
+			clearInterval(this.cleanupInterval);
+		}
 	}
 
 	increment(n: number): void {
@@ -88,12 +97,6 @@ class SlidingTimeAndNWindow {
 			}
 		}, 100);
 	}
-
-	destroy(): void {
-		if (this.cleanupInterval) {
-			clearInterval(this.cleanupInterval);
-		}
-	}
 }
 
 class Throttler {
@@ -113,8 +116,8 @@ class Throttler {
 	reset(): void {
 		if (this.numOutstandingRequests === 0) {
 			this.lastSendTime = Date.now();
-			this.totalQuotaUsedWindow.destroy();
-			this.sendPeriodWindow.destroy();
+			this.totalQuotaUsedWindow.dispose();
+			this.sendPeriodWindow.dispose();
 			this.totalQuotaUsedWindow = new SlidingTimeAndNWindow(5, 2000);
 			this.sendPeriodWindow = new SlidingTimeAndNWindow(5, 2000);
 		}
@@ -183,9 +186,9 @@ class Throttler {
 		return shouldSend;
 	}
 
-	destroy(): void {
-		this.totalQuotaUsedWindow.destroy();
-		this.sendPeriodWindow.destroy();
+	dispose(): void {
+		this.totalQuotaUsedWindow.dispose();
+		this.sendPeriodWindow.dispose();
 	}
 }
 
@@ -202,6 +205,7 @@ export class ApiClient implements IDisposable {
 
 	constructor(
 		target: number | null = 80,
+		@IEnvService private readonly envService: IEnvService,
 		@ILogService private readonly logService: ILogService,
 	) {
 		if (target === null) {
@@ -216,6 +220,7 @@ export class ApiClient implements IDisposable {
 		headers: Record<string, string>,
 		method: string,
 		body: unknown | undefined,
+		callerInfo: CallTracker,
 		token: CancellationToken,
 	): Promise<Response> {
 		if (this.throttler) {
@@ -234,7 +239,10 @@ export class ApiClient implements IDisposable {
 		try {
 			const res = await fetch(url, {
 				method,
-				headers,
+				headers: {
+					...headers,
+					...getGithubMetadataHeaders(callerInfo, this.envService),
+				},
 				body: body ? JSON.stringify(body) : undefined,
 			});
 			if (!res.ok) {
@@ -258,7 +266,7 @@ export class ApiClient implements IDisposable {
 	}
 
 	dispose(): void {
-		this.throttler?.destroy();
+		this.throttler?.dispose();
 	}
 }
 

@@ -12,7 +12,7 @@ import { IIgnoreService } from '../../../../../platform/ignore/common/ignoreServ
 import { ILogService } from '../../../../../platform/log/common/logService';
 import { TestWorkspaceService } from '../../../../../platform/test/node/testWorkspaceService';
 import { IWorkspaceService } from '../../../../../platform/workspace/common/workspaceService';
-import { ChatReferenceDiagnostic } from '../../../../../util/common/test/shims/chatTypes';
+import { ChatReferenceDiagnostic } from '../../../../../vscodeTypes';
 import { DiagnosticSeverity } from '../../../../../util/common/test/shims/enums';
 import { createTextDocumentData } from '../../../../../util/common/test/shims/textDocument';
 import { mock } from '../../../../../util/common/test/simpleMock';
@@ -471,6 +471,8 @@ function fixFilePathsForTestComparison(attachments: Attachment[]): Attachment[] 
 			attachment.path = attachment.path.replace(/\\/g, '/');
 		} else if (attachment.type === 'directory') {
 			attachment.path = attachment.path.replace(/\\/g, '/');
+		} else if (attachment.type === 'selection') {
+			attachment.filePath = attachment.filePath.replace(/\\/g, '/');
 		}
 	});
 	return attachments;

@@ -5,11 +5,19 @@
 
 import { RequestMetadata, RequestType } from '@vscode/copilot-api';
 import { ITokenizer } from '../../../util/common/tokenizer';
-import { GlobalChunkingDefaults } from '../../chunking/node/naiveChunker';
 import { LEGACY_EMBEDDING_MODEL_ID } from '../../embeddings/common/embeddingsComputer';
 import { IEmbeddingsEndpoint } from '../../networking/common/networking';
 import { ITokenizerProvider } from '../../tokenizer/node/tokenizer';
 import { IEmbeddingModelInformation } from '../common/endpointProvider';
+
+// Global chunking defaults that can be modified by the embedding model configuration
+const GlobalChunkingDefaults: {
+	maxTokenLength: number;
+	strategy: string;
+} = {
+	maxTokenLength: 250,
+	strategy: 'token'
+};
 
 export class EmbeddingEndpoint implements IEmbeddingsEndpoint {
 	public readonly maxBatchSize: number;

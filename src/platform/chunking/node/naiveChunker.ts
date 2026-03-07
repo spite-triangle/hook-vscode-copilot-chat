@@ -37,12 +37,6 @@ import { FileChunk } from '../common/chunk';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 // const { TokenChunker } = require('chonkie');
 
-/**
- * Resolve the default max chunk size (token length). Reads from environment variable
- * COPILOT_CHAT_MAX_CHUNK_TOKENS if present; falls back to 250.
- * This indirection allows dynamic tuning without code changes.
- */
-
 export const GlobalChunkingDefaults: {
 	maxTokenLength: number;
 	strategy: string;
@@ -51,7 +45,7 @@ export const GlobalChunkingDefaults: {
 	strategy: 'token'
 };
 
-
+// 替换 MAX_CHUNK_SIZE_TOKENS
 export function get_max_chunk_size_token(): number {
 	return GlobalChunkingDefaults.maxTokenLength;
 }
